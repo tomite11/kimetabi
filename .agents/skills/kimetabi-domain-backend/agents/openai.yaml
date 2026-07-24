@@ -1,0 +1,4 @@
+interface:
+  display_name: "タビキメ業務コア実装"
+  short_description: "旅行・候補・支出・按分・精算の業務コアを実装します"
+  default_prompt: "Use $kimetabi-domain-backend to implement the assigned domain backend task."

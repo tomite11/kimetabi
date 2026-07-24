@@ -1,0 +1,4 @@
+interface:
+  display_name: "タビキメ基盤・セキュリティ"
+  short_description: "認証・認可・非同期処理・同期・GCP境界を実装します"
+  default_prompt: "Use $kimetabi-platform-security to implement the assigned platform and security task."

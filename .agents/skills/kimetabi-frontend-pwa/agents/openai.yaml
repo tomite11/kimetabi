@@ -1,0 +1,4 @@
+interface:
+  display_name: "タビキメフロントエンドPWA"
+  short_description: "React画面・状態管理・オフライン・E2Eを実装します"
+  default_prompt: "Use $kimetabi-frontend-pwa to implement the assigned frontend and PWA task."

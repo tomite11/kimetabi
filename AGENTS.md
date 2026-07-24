@@ -40,6 +40,10 @@ Service Workerはvite-plugin-pwa＋Workboxで構成します。認証付きAPI�
 
 作業内容に対応するSkillがある場合は、実装やレビューを始める前に対象の `SKILL.md` を最後まで読み、その手順に従ってください。
 
+- M0〜M8のタスク選定、依存関係、並行作業、合流判定には `kimetabi-implementation`
+- `M*-A*` の旅行、候補、支出、按分、精算、DB、REST実装には `kimetabi-domain-backend`
+- `M*-B*` の認証・認可、非同期処理、同期、セキュリティ、GCP実装には `kimetabi-platform-security`
+- `M*-C*` のReact画面、状態管理、PWA、オフライン、E2E実装には `kimetabi-frontend-pwa`
 - Reactコンポーネント、データ取得、バンドル、性能改善には `vercel-react-best-practices`
 - Spring BootのAPI、サービス、設定、テストには `java-springboot`
 - manifest、Service Worker、Workbox、キャッシュ、オフライン対応には `pwa-development`

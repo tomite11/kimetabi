@@ -1,0 +1,4 @@
+interface:
+  display_name: "タビキメ実装オーケストレーター"
+  short_description: "M0〜M8の依存関係、並行作業、合流条件を管理します"
+  default_prompt: "Use $kimetabi-implementation to coordinate the next M0–M8 implementation task."
