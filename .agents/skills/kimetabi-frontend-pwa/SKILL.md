@@ -41,6 +41,15 @@ description: Implement and review the タビキメワリ C-lane React TypeScript
 - Check mobile width, keyboard order, visible focus, reduced motion, and supported camera/file fallbacks.
 - Verify Service Worker, manifest, Share Target, and offline start over HTTPS preview when applicable.
 
+## Review
+
+1. Load `$code-review-excellence` after implementation and tests.
+2. Review the complete diff for correctness, accessibility, generated-contract use, state ownership, rendering performance, offline data safety, retry behavior, Service Worker caching, and test gaps.
+3. Fix every critical and high-priority finding.
+4. Rerun all unit, component, type, lint, or E2E checks affected by review fixes.
+
+Do not claim completion while tests fail, required tests or code review were skipped, or critical/high findings remain unresolved.
+
 ## Hand off
 
-Report task IDs, routes/components changed, generated contract version, offline states handled, accessibility checks, browser/E2E results, and backend contract gaps.
+Report task IDs, routes/components changed, generated contract version, offline states handled, accessibility checks, test commands and results, code review findings and resolutions, browser/E2E results, and backend contract gaps.

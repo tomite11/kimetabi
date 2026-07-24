@@ -46,7 +46,10 @@ Do not let frontend code introduce handwritten API DTOs while waiting. Do not le
 2. Run the milestone join tests from the plan.
 3. Verify authorization, money invariants, idempotency, timezone boundaries, conflicts, offline retry, and revision recovery when relevant.
 4. Update OpenAPI-generated types and documentation in the same change.
-5. Do not mark a milestone complete until its join condition has repository evidence.
+5. For every code, configuration, or migration change, run the relevant tests.
+6. Load `$code-review-excellence` and review the complete diff before reporting completion.
+7. Resolve critical and high-priority review findings, then rerun affected tests.
+8. Do not mark a task or milestone complete while tests fail, critical/high findings remain unresolved, required tests or review were skipped, or its join condition lacks repository evidence.
 
 ## Report
 
@@ -55,5 +58,6 @@ Report:
 - completed task IDs
 - files and contracts changed
 - tests run and results
+- code review findings and resolutions
 - remaining join conditions
 - specification decisions or blockers

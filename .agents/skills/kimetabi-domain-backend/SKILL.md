@@ -32,7 +32,16 @@ Use Java four-space indentation, immutable value objects for calculations, `BigD
 - Prefer property tests for sum invariants and deterministic rounding.
 - Test repeated requests and concurrent updates, not only the happy path.
 
-Run the backend commands documented in the root README. Do not claim completion if the assigned milestone join condition remains unverified.
+Run the backend commands documented in the root README.
+
+## Review
+
+1. Load `$code-review-excellence` after implementation and tests.
+2. Review the complete diff for correctness, transaction boundaries, data integrity, authorization, concurrency, migration safety, API compatibility, and test gaps.
+3. Fix every critical and high-priority finding.
+4. Rerun all tests affected by review fixes.
+
+Do not claim completion while tests fail, required tests or code review were skipped, critical/high findings remain unresolved, or the assigned milestone join condition remains unverified.
 
 ## Hand off
 
@@ -41,5 +50,7 @@ Provide:
 - assigned task IDs and completed acceptance conditions
 - migrations and OpenAPI schemas added
 - invariants and concurrency cases tested
+- test commands and results
+- code review findings and resolutions
 - B/C lane contracts that changed
 - unresolved specification decisions

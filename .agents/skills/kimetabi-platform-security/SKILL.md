@@ -33,6 +33,15 @@ description: "Implement and audit the タビキメワリ B-lane platform and sec
 5. For infrastructure, verify CORS, CSP, backup/PITR, deletion protection, secret access, alerting, and rollback.
 6. Run relevant Spring, security, and integration tests.
 
+## Review
+
+1. Load `$code-review-excellence` after implementation and tests.
+2. Review the complete diff for trust-boundary mistakes, authorization bypass, secret exposure, unsafe retry/replay behavior, SSRF gaps, least-privilege violations, migration risk, and missing deny tests.
+3. Fix every critical and high-priority finding.
+4. Rerun all tests affected by review fixes.
+
+Do not claim completion while tests fail, required tests or code review were skipped, or critical/high findings remain unresolved.
+
 ## Hand off
 
-Document the trust boundary, identities and permissions, failure/retry semantics, observable signals, tests, and any residual risk. Do not describe an untested security control as complete.
+Document the trust boundary, identities and permissions, failure/retry semantics, observable signals, test commands and results, code review findings and resolutions, and any residual risk. Do not describe an untested or unreviewed security control as complete.
