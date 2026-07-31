@@ -21,7 +21,9 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import app.tabikime.kimetabi.trip.IdempotencyConflictException;
 import app.tabikime.kimetabi.trip.InvalidCursorException;
 import app.tabikime.kimetabi.trip.TripNotFoundException;
+import app.tabikime.kimetabi.trip.TripForbiddenException;
 import app.tabikime.kimetabi.trip.TripValidationException;
+import app.tabikime.kimetabi.trip.TripVersionConflictException;
 
 @RestControllerAdvice
 public class GlobalApiExceptionHandler {
@@ -37,6 +39,8 @@ public class GlobalApiExceptionHandler {
             URI.create("https://tabikime.app/problems/not-found");
     private static final URI CONFLICT_TYPE =
             URI.create("https://tabikime.app/problems/conflict");
+    private static final URI FORBIDDEN_TYPE =
+            URI.create("https://tabikime.app/problems/forbidden");
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ProblemDetail> handleValidation(
@@ -179,6 +183,40 @@ public class GlobalApiExceptionHandler {
                 "同じIdempotency-Keyが異なるリクエストに使われています。",
                 request
         );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(TripForbiddenException.class)
+    ResponseEntity<ProblemDetail> handleTripForbidden(
+            TripForbiddenException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = createProblem(
+                HttpStatus.FORBIDDEN,
+                FORBIDDEN_TYPE,
+                "権限がありません",
+                ApiErrorCode.FORBIDDEN,
+                "この操作を実行する権限がありません。",
+                request
+        );
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+    }
+
+    @ExceptionHandler(TripVersionConflictException.class)
+    ResponseEntity<ProblemDetail> handleTripVersionConflict(
+            TripVersionConflictException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = createProblem(
+                HttpStatus.CONFLICT,
+                CONFLICT_TYPE,
+                "競合が発生しました",
+                ApiErrorCode.VERSION_CONFLICT,
+                "旅行が別の操作で更新されています。",
+                request
+        );
+        problem.setProperty("currentVersion", exception.current().version());
+        problem.setProperty("current", exception.current());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 

@@ -5,7 +5,7 @@ import java.util.List;
 public record TripSnapshot(
         TripResource trip,
         List<MemberResource> members,
-        List<Object> slots
+        List<SlotResource> slots
 ) {
     public TripSnapshot {
         members = List.copyOf(members);

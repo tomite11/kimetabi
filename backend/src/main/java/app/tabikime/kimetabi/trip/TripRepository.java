@@ -24,6 +24,21 @@ public class TripRepository {
                     resultSet.getString("name"),
                     MemberRole.valueOf(resultSet.getString("role")),
                     MemberStatus.valueOf(resultSet.getString("status")));
+    private static final RowMapper<SlotResource> SLOT_ROW_MAPPER = (resultSet, rowNumber) ->
+            new SlotResource(
+                    resultSet.getLong("id"),
+                    SlotCategory.valueOf(resultSet.getString("category")),
+                    resultSet.getString("title"),
+                    resultSet.getInt("day_from"),
+                    resultSet.getInt("day_to"),
+                    resultSet.getInt("units"),
+                    resultSet.getInt("sort_order"),
+                    SlotStatus.valueOf(resultSet.getString("status")),
+                    resultSet.getObject("deadline", LocalDate.class),
+                    resultSet.getObject("est_per_person", Long.class),
+                    resultSet.getObject("adopted_candidate_id", Long.class),
+                    resultSet.getBoolean("auto_generated"),
+                    resultSet.getLong("version"));
 
     private final JdbcClient jdbcClient;
 
@@ -82,6 +97,31 @@ public class TripRepository {
                 .update();
         if (updated != 1) {
             throw new IllegalStateException("New trip disappeared before owner assignment");
+        }
+    }
+
+    void insertInitialSlots(long tripId, List<InitialSlotFactory.SlotDraft> slots) {
+        for (InitialSlotFactory.SlotDraft slot : slots) {
+            jdbcClient.sql("""
+                            INSERT INTO slot (
+                                trip_id, category, title, day_from, day_to, units,
+                                sort_order, status, deadline, est_per_person, auto_generated
+                            )
+                            VALUES (
+                                :tripId, :category, :title, :dayFrom, :dayTo, :units,
+                                :sortOrder, 'OPEN', :deadline, :estPerPerson, TRUE
+                            )
+                            """)
+                    .param("tripId", tripId)
+                    .param("category", slot.category().name())
+                    .param("title", slot.title())
+                    .param("dayFrom", slot.dayFrom())
+                    .param("dayTo", slot.dayTo())
+                    .param("units", slot.units())
+                    .param("sortOrder", slot.sortOrder())
+                    .param("deadline", slot.deadline())
+                    .param("estPerPerson", slot.estPerPerson())
+                    .update();
         }
     }
 
@@ -152,6 +192,93 @@ public class TripRepository {
                 .param("tripId", tripId)
                 .query(MEMBER_ROW_MAPPER)
                 .list();
+    }
+
+    List<SlotResource> listSlots(long tripId) {
+        return jdbcClient.sql("""
+                        SELECT id, category, title, day_from, day_to, units, sort_order,
+                               status, deadline, est_per_person, adopted_candidate_id,
+                               auto_generated, version
+                        FROM slot
+                        WHERE trip_id = :tripId
+                        ORDER BY sort_order, id
+                        """)
+                .param("tripId", tripId)
+                .query(SLOT_ROW_MAPPER)
+                .list();
+    }
+
+    Optional<MemberRole> findActiveMemberRole(long tripId, String firebaseUid) {
+        return jdbcClient.sql("""
+                        SELECT role
+                        FROM trip_member
+                        WHERE trip_id = :tripId
+                          AND firebase_uid = :firebaseUid
+                          AND status = 'ACTIVE'
+                        """)
+                .param("tripId", tripId)
+                .param("firebaseUid", firebaseUid)
+                .query(String.class)
+                .optional()
+                .map(MemberRole::valueOf);
+    }
+
+    boolean updateTrip(
+            long tripId,
+            String firebaseUid,
+            long expectedVersion,
+            UpdateTripRequest request
+    ) {
+        return jdbcClient.sql("""
+                        UPDATE trip
+                        SET title = COALESCE(:title, title),
+                            destination = COALESCE(:destination, destination),
+                            starts_on = COALESCE(:startsOn, starts_on),
+                            ends_on = COALESCE(:endsOn, ends_on),
+                            timezone = COALESCE(:timezone, timezone),
+                            expected_member_count =
+                                COALESCE(:expectedMemberCount, expected_member_count),
+                            phase_override = CASE
+                                WHEN :phaseOverridePresent THEN :phaseOverride
+                                ELSE phase_override
+                            END,
+                            vote_visibility = COALESCE(:voteVisibility, vote_visibility),
+                            budget_cap = CASE
+                                WHEN :budgetCapPresent THEN :budgetCap
+                                ELSE budget_cap
+                            END,
+                            revision = revision + 1,
+                            version = version + 1,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :tripId
+                          AND deleted_at IS NULL
+                          AND version = :expectedVersion
+                          AND EXISTS (
+                              SELECT 1
+                              FROM trip_member tm
+                              WHERE tm.trip_id = trip.id
+                                AND tm.firebase_uid = :firebaseUid
+                                AND tm.status = 'ACTIVE'
+                                AND tm.role IN ('OWNER', 'ORGANIZER')
+                          )
+                        """)
+                .param("title", trimmed(request.title()))
+                .param("destination", trimmed(request.destination()))
+                .param("startsOn", request.startsOn())
+                .param("endsOn", request.endsOn())
+                .param("timezone", trimmed(request.timezone()))
+                .param("expectedMemberCount", request.expectedMemberCount())
+                .param("phaseOverridePresent", request.phaseOverridePresent())
+                .param("phaseOverride",
+                        request.phaseOverride() == null ? null : request.phaseOverride().name())
+                .param("voteVisibility",
+                        request.voteVisibility() == null ? null : request.voteVisibility().name())
+                .param("budgetCapPresent", request.budgetCapPresent())
+                .param("budgetCap", request.budgetCap())
+                .param("tripId", tripId)
+                .param("expectedVersion", expectedVersion)
+                .param("firebaseUid", firebaseUid)
+                .update() == 1;
     }
 
     boolean claimIdempotencyKey(
@@ -241,6 +368,10 @@ public class TripRepository {
 
     private static VoteVisibility visibility(CreateTripRequest request) {
         return request.voteVisibility() == null ? VoteVisibility.NAMED : request.voteVisibility();
+    }
+
+    private static String trimmed(String value) {
+        return value == null ? null : value.trim();
     }
 
     record StoredTrip(

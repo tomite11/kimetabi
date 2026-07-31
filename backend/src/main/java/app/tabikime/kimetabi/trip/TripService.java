@@ -3,7 +3,6 @@ package app.tabikime.kimetabi.trip;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.zone.ZoneRulesException;
 import java.util.HexFormat;
@@ -20,10 +19,19 @@ public class TripService {
 
     private final TripRepository repository;
     private final ObjectMapper objectMapper;
+    private final InitialSlotFactory initialSlotFactory;
+    private final TripPhasePolicy phasePolicy;
 
-    public TripService(TripRepository repository, ObjectMapper objectMapper) {
+    public TripService(
+            TripRepository repository,
+            ObjectMapper objectMapper,
+            InitialSlotFactory initialSlotFactory,
+            TripPhasePolicy phasePolicy
+    ) {
         this.repository = repository;
         this.objectMapper = objectMapper;
+        this.initialSlotFactory = initialSlotFactory;
+        this.phasePolicy = phasePolicy;
     }
 
     @Transactional
@@ -49,6 +57,12 @@ public class TripService {
         long tripId = repository.insertTrip(request);
         long ownerId = repository.insertOwner(tripId, firebaseUid, request.ownerName());
         repository.setOwner(tripId, ownerId);
+        repository.insertInitialSlots(
+                tripId,
+                initialSlotFactory.create(
+                        request.startsOn(),
+                        request.endsOn(),
+                        request.timezone().trim()));
         TripSnapshot snapshot = snapshot(firebaseUid, tripId);
         repository.completeIdempotencyKey(
                 firebaseUid,
@@ -84,7 +98,37 @@ public class TripService {
         return new TripSnapshot(
                 toResource(trip),
                 repository.listMembers(tripId),
-                List.of());
+                repository.listSlots(tripId));
+    }
+
+    @Transactional
+    public TripResource update(
+            String firebaseUid,
+            long tripId,
+            UpdateTripRequest request
+    ) {
+        if (!request.hasChange()) {
+            throw new TripValidationException(
+                    "request",
+                    "version以外に少なくとも1項目を指定してください。");
+        }
+        TripRepository.StoredTrip current = repository.findActiveMemberTrip(tripId, firebaseUid)
+                .orElseThrow(TripNotFoundException::new);
+        MemberRole role = repository.findActiveMemberRole(tripId, firebaseUid)
+                .orElseThrow(TripNotFoundException::new);
+        if (role == MemberRole.MEMBER) {
+            throw new TripForbiddenException();
+        }
+        validateUpdate(current, request);
+        if (!repository.updateTrip(tripId, firebaseUid, request.version(), request)) {
+            TripRepository.StoredTrip latest =
+                    repository.findActiveMemberTrip(tripId, firebaseUid)
+                            .orElseThrow(TripNotFoundException::new);
+            throw new TripVersionConflictException(toResource(latest));
+        }
+        return repository.findActiveMemberTrip(tripId, firebaseUid)
+                .map(this::toResource)
+                .orElseThrow(TripNotFoundException::new);
     }
 
     private void validate(CreateTripRequest request) {
@@ -102,18 +146,42 @@ public class TripService {
         }
     }
 
-    private TripResource toResource(TripRepository.StoredTrip trip) {
-        TripPhase phase = trip.phaseOverride();
-        if (phase == null) {
-            LocalDate today = LocalDate.now(ZoneId.of(trip.timezone()));
-            if (today.isBefore(trip.startsOn())) {
-                phase = TripPhase.PLANNING;
-            } else if (today.isAfter(trip.endsOn())) {
-                phase = TripPhase.SETTLING;
-            } else {
-                phase = TripPhase.TRAVELING;
-            }
+    private void validateUpdate(
+            TripRepository.StoredTrip current,
+            UpdateTripRequest request
+    ) {
+        java.time.LocalDate startsOn =
+                request.startsOn() == null ? current.startsOn() : request.startsOn();
+        java.time.LocalDate endsOn =
+                request.endsOn() == null ? current.endsOn() : request.endsOn();
+        if (endsOn.isBefore(startsOn)) {
+            throw new TripValidationException(
+                    "endsOn",
+                    "帰着日は出発日以降を指定してください。");
         }
+        String timezone =
+                request.timezone() == null ? current.timezone() : request.timezone().trim();
+        if (request.title() != null && request.title().isBlank()) {
+            throw new TripValidationException("title", "旅行名を入力してください。");
+        }
+        if (request.destination() != null && request.destination().isBlank()) {
+            throw new TripValidationException("destination", "目的地を入力してください。");
+        }
+        try {
+            ZoneId.of(timezone);
+        } catch (ZoneRulesException exception) {
+            throw new TripValidationException(
+                    "timezone",
+                    "有効なIANAタイムゾーンを指定してください。");
+        }
+    }
+
+    private TripResource toResource(TripRepository.StoredTrip trip) {
+        TripPhase phase = phasePolicy.determine(
+                trip.startsOn(),
+                trip.endsOn(),
+                trip.timezone(),
+                trip.phaseOverride());
         return new TripResource(
                 trip.id(),
                 trip.title(),

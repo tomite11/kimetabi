@@ -33,7 +33,7 @@ class TripSchemaTest {
     @BeforeEach
     void cleanDatabase() {
         jdbcClient.sql("""
-                        TRUNCATE idempotency_request, trip_member, trip
+                        TRUNCATE idempotency_request, slot, trip_member, trip
                         RESTART IDENTITY CASCADE
                         """)
                 .update();
@@ -66,6 +66,35 @@ class TripSchemaTest {
                 .update()).isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    @Test
+    @Transactional
+    void rejectsInvalidSlotRange() {
+        long tripId = insertTrip();
+
+        assertThatThrownBy(() -> jdbcClient.sql("""
+                        INSERT INTO slot (
+                            trip_id, category, title, day_from, day_to, units,
+                            sort_order, status
+                        )
+                        VALUES (
+                            :tripId, 'LODGING', '不正な宿', 2, 1, 1, 1, 'OPEN'
+                        )
+                        """)
+                .param("tripId", tripId)
+                .update()).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @Transactional
+    void rejectsDuplicateSlotSortOrderWhenDeferredConstraintIsChecked() {
+        long tripId = insertTrip();
+        insertSlot(tripId, 0);
+        insertSlot(tripId, 0);
+
+        assertThatThrownBy(() -> jdbcClient.sql("SET CONSTRAINTS uq_slot_sort_order IMMEDIATE")
+                .update()).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
     private long insertTrip() {
         return jdbcClient.sql("""
                         INSERT INTO trip (
@@ -92,6 +121,22 @@ class TripSchemaTest {
                 .param("tripId", tripId)
                 .param("firebaseUid", firebaseUid)
                 .param("role", role)
+                .update();
+    }
+
+    private void insertSlot(long tripId, int sortOrder) {
+        jdbcClient.sql("""
+                        INSERT INTO slot (
+                            trip_id, category, title, day_from, day_to, units,
+                            sort_order, status
+                        )
+                        VALUES (
+                            :tripId, 'TRANSPORT', '移動', 1, 1, 1,
+                            :sortOrder, 'OPEN'
+                        )
+                        """)
+                .param("tripId", tripId)
+                .param("sortOrder", sortOrder)
                 .update();
     }
 }
