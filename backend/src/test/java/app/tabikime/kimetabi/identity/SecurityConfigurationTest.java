@@ -13,16 +13,14 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
 
 @SpringBootTest(
         classes = {
                 SecurityConfigurationTest.TestConfiguration.class,
-                SecurityConfiguration.class
+                SecurityConfiguration.class,
+                SessionController.class
         },
         properties = "management.endpoints.web.exposure.include=health,info"
 )
@@ -34,14 +32,14 @@ class SecurityConfigurationTest {
 
     @Test
     void deniesApiWithoutAuthentication() throws Exception {
-        mockMvc.perform(get("/api/test/principal"))
+        mockMvc.perform(get("/api/session"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
     }
 
     @Test
     void convertsVerifiedFirebaseTokenToAppPrincipal() throws Exception {
-        mockMvc.perform(get("/api/test/principal")
+        mockMvc.perform(get("/api/session")
                         .header("Authorization", "Bearer valid-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.firebaseUid").value("firebase-user-1"));
@@ -49,7 +47,7 @@ class SecurityConfigurationTest {
 
     @Test
     void rejectsInvalidFirebaseToken() throws Exception {
-        mockMvc.perform(get("/api/test/principal")
+        mockMvc.perform(get("/api/session")
                         .header("Authorization", "Bearer invalid-token"))
                 .andExpect(status().isUnauthorized());
     }
@@ -60,7 +58,7 @@ class SecurityConfigurationTest {
         var authentication =
                 new UsernamePasswordAuthenticationToken(principal, null, java.util.List.of());
 
-        mockMvc.perform(get("/api/test/principal")
+        mockMvc.perform(get("/api/session")
                         .with(org.springframework.security.test.web.servlet.request
                                 .SecurityMockMvcRequestPostProcessors.authentication(authentication)))
                 .andExpect(status().isOk())
@@ -101,18 +99,5 @@ class SecurityConfigurationTest {
             };
         }
 
-        @Bean
-        PrincipalController principalController() {
-            return new PrincipalController();
-        }
-    }
-
-    @RestController
-    static class PrincipalController {
-
-        @GetMapping("/api/test/principal")
-        AppPrincipal principal(Authentication authentication) {
-            return (AppPrincipal) authentication.getPrincipal();
-        }
     }
 }

@@ -73,6 +73,11 @@ npm run dev
 OpenAPI型は `openapi/openapi.json` から生成します。型検査とbuild時にも自動生成
 されます。
 
+APIクライアントはFirebase ID tokenを非同期に取得する
+`AccessTokenProvider`を受け取り、認証が必要なリクエストへBearer tokenを付与します。
+M1の疎通確認には `GET /api/session` を使用し、検証済みPrincipalのUIDだけを返します。
+Firebase SDKとの接続はM2で行います。
+
 ```shell
 cd frontend
 npm run generate:api

@@ -17,6 +17,9 @@
   ],
   "tags": [
     {
+      "name": "Authentication"
+    },
+    {
       "name": "Trips"
     },
     {
@@ -30,6 +33,30 @@
     }
   ],
   "paths": {
+    "/api/session": {
+      "get": {
+        "operationId": "getSession",
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Verify the current Firebase identity",
+        "responses": {
+          "200": {
+            "description": "Verified application principal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
     "/api/trips": {
       "get": {
         "operationId": "listTrips",
@@ -1729,6 +1756,19 @@
       }
     },
     "schemas": {
+      "Session": {
+        "type": "object",
+        "required": [
+          "firebaseUid"
+        ],
+        "properties": {
+          "firebaseUid": {
+            "type": "string",
+            "minLength": 1,
+            "description": "UID from a signature-verified Firebase ID token"
+          }
+        }
+      },
       "Id": {
         "type": "integer",
         "format": "int64",
