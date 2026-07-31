@@ -1,0 +1,294 @@
+package app.tabikime.kimetabi.trip;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
+import com.jayway.jsonpath.JsonPath;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
+import org.testcontainers.utility.DockerImageName;
+
+import app.tabikime.kimetabi.identity.AppPrincipal;
+
+@Testcontainers
+@SpringBootTest
+@AutoConfigureMockMvc
+class TripApiTest {
+
+    @Container
+    @ServiceConnection
+    static final PostgreSQLContainer postgres =
+            new PostgreSQLContainer(DockerImageName.parse("postgres:17-alpine"))
+                    .withDatabaseName("kimetabi")
+                    .withUsername("kimetabi")
+                    .withPassword("kimetabi");
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcClient jdbcClient;
+
+    @Autowired
+    private TripService tripService;
+
+    @BeforeEach
+    void cleanDatabase() {
+        jdbcClient.sql("""
+                        TRUNCATE idempotency_request, trip_member, trip
+                        RESTART IDENTITY CASCADE
+                        """)
+                .update();
+    }
+
+    @Test
+    void createsTripAndOwnerAtomicallyAndReturnsSnapshot() throws Exception {
+        MvcResult result = createTrip("owner-uid", UUID.randomUUID(), validRequest("夏の旅"))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Location", "/api/trips/1"))
+                .andExpect(jsonPath("$.trip.id").value(1))
+                .andExpect(jsonPath("$.trip.title").value("夏の旅"))
+                .andExpect(jsonPath("$.trip.phase").value("PLANNING"))
+                .andExpect(jsonPath("$.trip.voteVisibility").value("NAMED"))
+                .andExpect(jsonPath("$.trip.revision").value(0))
+                .andExpect(jsonPath("$.trip.version").value(0))
+                .andExpect(jsonPath("$.members[0].name").value("旅行オーナー"))
+                .andExpect(jsonPath("$.members[0].role").value("OWNER"))
+                .andExpect(jsonPath("$.members[0].status").value("ACTIVE"))
+                .andExpect(jsonPath("$.slots").isEmpty())
+                .andReturn();
+
+        long tripId = ((Number) JsonPath.read(
+                result.getResponse().getContentAsString(),
+                "$.trip.id")).longValue();
+        assertThat(jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM trip t
+                        JOIN trip_member tm
+                          ON tm.id = t.owner_member_id
+                         AND tm.trip_id = t.id
+                        WHERE t.id = :tripId
+                          AND tm.firebase_uid = 'owner-uid'
+                          AND tm.role = 'OWNER'
+                          AND tm.status = 'ACTIVE'
+                        """)
+                .param("tripId", tripId)
+                .query(Long.class)
+                .single()).isEqualTo(1);
+    }
+
+    @Test
+    void repeatsSameCreateWithoutDuplicatingTrip() throws Exception {
+        UUID key = UUID.randomUUID();
+        String request = validRequest("冪等な旅");
+
+        createTrip("owner-uid", key, request)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.trip.id").value(1));
+        jdbcClient.sql("""
+                        UPDATE trip
+                        SET title = '後から変更された名前',
+                            version = version + 1
+                        WHERE id = 1
+                        """)
+                .update();
+        createTrip("owner-uid", key, request)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.trip.id").value(1))
+                .andExpect(jsonPath("$.trip.title").value("冪等な旅"))
+                .andExpect(jsonPath("$.trip.version").value(0));
+
+        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM trip")
+                .query(Long.class)
+                .single()).isEqualTo(1);
+        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM trip_member")
+                .query(Long.class)
+                .single()).isEqualTo(1);
+    }
+
+    @Test
+    void rejectsReusedIdempotencyKeyWithDifferentRequest() throws Exception {
+        UUID key = UUID.randomUUID();
+        createTrip("owner-uid", key, validRequest("最初の旅"))
+                .andExpect(status().isCreated());
+
+        createTrip("owner-uid", key, validRequest("別の旅"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"));
+
+        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM trip")
+                .query(Long.class)
+                .single()).isEqualTo(1);
+    }
+
+    @Test
+    void concurrentRetriesCreateOnlyOneTrip() throws Exception {
+        UUID key = UUID.randomUUID();
+        CreateTripRequest request = new CreateTripRequest(
+                "同時作成の旅",
+                "東京",
+                java.time.LocalDate.of(2030, 8, 1),
+                java.time.LocalDate.of(2030, 8, 3),
+                "Asia/Tokyo",
+                3,
+                "旅行オーナー",
+                null,
+                null);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> tripService.create("owner-uid", key, request));
+            var second = executor.submit(() -> tripService.create("owner-uid", key, request));
+
+            assertThat(first.get(10, TimeUnit.SECONDS).trip().id())
+                    .isEqualTo(second.get(10, TimeUnit.SECONDS).trip().id());
+        }
+
+        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM trip")
+                .query(Long.class)
+                .single()).isEqualTo(1);
+        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM trip_member")
+                .query(Long.class)
+                .single()).isEqualTo(1);
+    }
+
+    @Test
+    void listsOnlyTripsWherePrincipalIsActiveMemberAndPaginates() throws Exception {
+        createTrip("member-a", UUID.randomUUID(), validRequest("A-1"))
+                .andExpect(status().isCreated());
+        createTrip("member-b", UUID.randomUUID(), validRequest("B-1"))
+                .andExpect(status().isCreated());
+        createTrip("member-a", UUID.randomUUID(), validRequest("A-2"))
+                .andExpect(status().isCreated());
+
+        MvcResult firstPage = mockMvc.perform(get("/api/trips")
+                        .queryParam("limit", "1")
+                        .with(principal("member-a")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.nextCursor").isString())
+                .andReturn();
+        String cursor = JsonPath.read(
+                firstPage.getResponse().getContentAsString(),
+                "$.nextCursor");
+
+        mockMvc.perform(get("/api/trips")
+                        .queryParam("limit", "1")
+                        .queryParam("cursor", cursor)
+                        .with(principal("member-a")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.nextCursor").doesNotExist());
+
+        List<String> titles = jdbcClient.sql("""
+                        SELECT t.title
+                        FROM trip t
+                        JOIN trip_member tm ON tm.trip_id = t.id
+                        WHERE tm.firebase_uid = 'member-a'
+                        ORDER BY t.id
+                        """)
+                .query(String.class)
+                .list();
+        assertThat(titles).containsExactly("A-1", "A-2");
+    }
+
+    @Test
+    void hidesSnapshotFromNonMember() throws Exception {
+        createTrip("owner-uid", UUID.randomUUID(), validRequest("秘密の旅"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/trips/1")
+                        .with(principal("not-a-member")))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("旅行が見つかりません。"));
+    }
+
+    @Test
+    void validatesDatesTimezoneAndCursorWithoutLeakingDatabaseErrors() throws Exception {
+        createTrip("owner-uid", UUID.randomUUID(), """
+                        {
+                          "title": "不正な旅",
+                          "destination": "東京",
+                          "startsOn": "2030-08-03",
+                          "endsOn": "2030-08-01",
+                          "timezone": "Not/A_Zone",
+                          "expectedMemberCount": 2,
+                          "ownerName": "旅行オーナー"
+                        }
+                        """)
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("endsOn"));
+
+        mockMvc.perform(get("/api/trips")
+                .queryParam("cursor", "not-a-cursor")
+                        .with(principal("owner-uid")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+        mockMvc.perform(post("/api/trips")
+                        .header("Idempotency-Key", "not-a-uuid")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validRequest("不正なキー"))
+                        .with(principal("owner-uid")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions createTrip(
+            String firebaseUid,
+            UUID idempotencyKey,
+            String request
+    ) throws Exception {
+        return mockMvc.perform(post("/api/trips")
+                .header("Idempotency-Key", idempotencyKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(request)
+                .with(principal(firebaseUid)));
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor principal(
+            String firebaseUid
+    ) {
+        var token = new UsernamePasswordAuthenticationToken(
+                new AppPrincipal(firebaseUid),
+                null,
+                List.of());
+        return authentication(token);
+    }
+
+    private String validRequest(String title) {
+        return """
+                {
+                  "title": "%s",
+                  "destination": "東京",
+                  "startsOn": "2030-08-01",
+                  "endsOn": "2030-08-03",
+                  "timezone": "Asia/Tokyo",
+                  "expectedMemberCount": 3,
+                  "ownerName": "旅行オーナー"
+                }
+                """.formatted(title);
+    }
+}

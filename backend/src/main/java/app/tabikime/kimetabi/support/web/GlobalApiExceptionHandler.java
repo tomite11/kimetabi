@@ -16,6 +16,12 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+
+import app.tabikime.kimetabi.trip.IdempotencyConflictException;
+import app.tabikime.kimetabi.trip.InvalidCursorException;
+import app.tabikime.kimetabi.trip.TripNotFoundException;
+import app.tabikime.kimetabi.trip.TripValidationException;
 
 @RestControllerAdvice
 public class GlobalApiExceptionHandler {
@@ -27,6 +33,10 @@ public class GlobalApiExceptionHandler {
             URI.create("https://tabikime.app/problems/invalid-request");
     private static final URI INTERNAL_ERROR_TYPE =
             URI.create("https://tabikime.app/problems/internal-error");
+    private static final URI NOT_FOUND_TYPE =
+            URI.create("https://tabikime.app/problems/not-found");
+    private static final URI CONFLICT_TYPE =
+            URI.create("https://tabikime.app/problems/conflict");
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ProblemDetail> handleValidation(
@@ -87,6 +97,89 @@ public class GlobalApiExceptionHandler {
                 request
         );
         return ResponseEntity.badRequest().body(problem);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    ResponseEntity<ProblemDetail> handleTypeMismatch(
+            MethodArgumentTypeMismatchException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = createProblem(
+                HttpStatus.BAD_REQUEST,
+                INVALID_REQUEST_TYPE,
+                "リクエストを読み取れません",
+                ApiErrorCode.INVALID_REQUEST,
+                "リクエストの形式を確認してください。",
+                request
+        );
+        return ResponseEntity.badRequest().body(problem);
+    }
+
+    @ExceptionHandler(InvalidCursorException.class)
+    ResponseEntity<ProblemDetail> handleInvalidCursor(
+            InvalidCursorException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = createProblem(
+                HttpStatus.BAD_REQUEST,
+                INVALID_REQUEST_TYPE,
+                "リクエストを読み取れません",
+                ApiErrorCode.INVALID_REQUEST,
+                "カーソルが不正です。",
+                request
+        );
+        return ResponseEntity.badRequest().body(problem);
+    }
+
+    @ExceptionHandler(TripValidationException.class)
+    ResponseEntity<ProblemDetail> handleTripValidation(
+            TripValidationException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = createProblem(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                VALIDATION_TYPE,
+                "入力値が不正です",
+                ApiErrorCode.VALIDATION_FAILED,
+                "入力内容を確認してください。",
+                request
+        );
+        problem.setProperty(
+                "fieldErrors",
+                List.of(new FieldErrorResponse(exception.field(), exception.getMessage())));
+        return ResponseEntity.unprocessableEntity().body(problem);
+    }
+
+    @ExceptionHandler(TripNotFoundException.class)
+    ResponseEntity<ProblemDetail> handleTripNotFound(
+            TripNotFoundException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = createProblem(
+                HttpStatus.NOT_FOUND,
+                NOT_FOUND_TYPE,
+                "見つかりません",
+                ApiErrorCode.NOT_FOUND,
+                "旅行が見つかりません。",
+                request
+        );
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    @ExceptionHandler(IdempotencyConflictException.class)
+    ResponseEntity<ProblemDetail> handleIdempotencyConflict(
+            IdempotencyConflictException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = createProblem(
+                HttpStatus.CONFLICT,
+                CONFLICT_TYPE,
+                "競合が発生しました",
+                ApiErrorCode.IDEMPOTENCY_CONFLICT,
+                "同じIdempotency-Keyが異なるリクエストに使われています。",
+                request
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 
     @ExceptionHandler(Exception.class)

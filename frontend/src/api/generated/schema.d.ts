@@ -1033,6 +1033,7 @@ export interface operations {
                     "application/json": components["schemas"]["TripPage"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
         };
     };
