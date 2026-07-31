@@ -20,6 +20,9 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 import app.tabikime.kimetabi.trip.IdempotencyConflictException;
 import app.tabikime.kimetabi.trip.InvalidCursorException;
+import app.tabikime.kimetabi.trip.InvalidAccessTokenException;
+import app.tabikime.kimetabi.trip.RecoveryConflictException;
+import app.tabikime.kimetabi.trip.TokenRateLimitExceededException;
 import app.tabikime.kimetabi.trip.TripNotFoundException;
 import app.tabikime.kimetabi.trip.TripForbiddenException;
 import app.tabikime.kimetabi.trip.TripValidationException;
@@ -41,6 +44,8 @@ public class GlobalApiExceptionHandler {
             URI.create("https://tabikime.app/problems/conflict");
     private static final URI FORBIDDEN_TYPE =
             URI.create("https://tabikime.app/problems/forbidden");
+    private static final URI RATE_LIMITED_TYPE =
+            URI.create("https://tabikime.app/problems/rate-limited");
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ProblemDetail> handleValidation(
@@ -168,6 +173,56 @@ public class GlobalApiExceptionHandler {
                 request
         );
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    @ExceptionHandler(InvalidAccessTokenException.class)
+    ResponseEntity<ProblemDetail> handleInvalidAccessToken(
+            InvalidAccessTokenException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = createProblem(
+                HttpStatus.NOT_FOUND,
+                NOT_FOUND_TYPE,
+                "見つかりません",
+                ApiErrorCode.NOT_FOUND,
+                "リンクが無効です。",
+                request
+        );
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    @ExceptionHandler(TokenRateLimitExceededException.class)
+    ResponseEntity<ProblemDetail> handleRateLimit(
+            TokenRateLimitExceededException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = createProblem(
+                HttpStatus.TOO_MANY_REQUESTS,
+                RATE_LIMITED_TYPE,
+                "試行回数が多すぎます",
+                ApiErrorCode.RATE_LIMITED,
+                "しばらく待ってから再試行してください。",
+                request
+        );
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", "900")
+                .body(problem);
+    }
+
+    @ExceptionHandler(RecoveryConflictException.class)
+    ResponseEntity<ProblemDetail> handleRecoveryConflict(
+            RecoveryConflictException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = createProblem(
+                HttpStatus.CONFLICT,
+                CONFLICT_TYPE,
+                "競合が発生しました",
+                ApiErrorCode.RESOURCE_CONFLICT,
+                "このアカウントは既に別のメンバーへ関連付けられています。",
+                request
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 
     @ExceptionHandler(IdempotencyConflictException.class)

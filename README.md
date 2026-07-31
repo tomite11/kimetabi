@@ -45,6 +45,10 @@ Credentialsで初期化され、Bearerとして受け取ったFirebase ID token�
 サービスアカウント鍵、テスト用認証ヘッダーはソースへ置きません。テストでは
 Spring Security Testによるテスト専用`AppPrincipal`注入を使用します。
 
+Cloud Runで招待・復旧のIP単位レート制限に転送元IPを使用する場合だけ、
+`TRUST_GOOGLE_FORWARDED_FOR=true`を設定します。ローカル環境やGoogle proxyを
+経由しない環境では設定せず、接続元のremote addressを使用してください。
+
 設定は環境変数に加え、Cloud Runでマウントする
 `/var/run/secrets/kimetabi/` のconfig treeから外部注入できます。
 `/actuator/health` は未認証で公開し、その他のActuator endpointは認証を要求します。

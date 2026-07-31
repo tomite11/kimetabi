@@ -431,6 +431,44 @@
         }
       }
     },
+    "/api/trips/{tripId}/invitations/{invitationId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        },
+        {
+          "name": "invitationId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Id"
+          }
+        }
+      ],
+      "delete": {
+        "operationId": "revokeInvitation",
+        "tags": [
+          "Trips"
+        ],
+        "responses": {
+          "204": {
+            "description": "Unused invitation revoked"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
     "/api/trips/{tripId}/members/{memberId}/recovery-links": {
       "parameters": [
         {
@@ -2264,10 +2302,14 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
+          "id",
           "url",
           "expiresAt"
         ],
         "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
           "url": {
             "type": "string",
             "format": "uri",
@@ -2283,10 +2325,14 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
+          "id",
           "url",
           "expiresAt"
         ],
         "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
           "url": {
             "type": "string",
             "format": "uri",

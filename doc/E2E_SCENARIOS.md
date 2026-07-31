@@ -7,6 +7,7 @@ Playwright/MSW実装時のシナリオ契約。API例は
 | ID | シナリオ | 主なAPIと検証点 |
 |---|---|---|
 | E2E-JOIN-01 | 招待URLを開き匿名認証、表示名を入力して参加 | `acceptInvitation`; tokenをログへ出さず、失効Problemを区別 |
+| E2E-RECOVER-01 | 復旧URLを新しい匿名UIDで開き、既存member参照を復旧 | `acceptMemberRecovery`; token秘匿、期限切れ・使用済み・UID競合・429を区別 |
 | E2E-TRIP-01 | 空の旅行一覧から旅行を作成 | `listTrips`, `createTrip`; 空状態の操作は1つ、IANA TZを保持 |
 | E2E-PLAN-01 | 空の枠へURL候補を追加し取得中から完了へ | `getSlot`, `createCandidate`; 入力欄は同一画面、PENDINGを可視化 |
 | E2E-PLAN-02 | キーボードだけで候補を比較・投票・採択 | `putMyCandidateVote`, `adoptCandidate`; NO理由、権限、focus復帰 |

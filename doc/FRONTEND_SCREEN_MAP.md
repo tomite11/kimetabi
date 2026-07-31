@@ -31,6 +31,7 @@
 | `/t/:tripId/expenses/new` | `ExpenseDraftPage`, `ReceiptCapture`, `AllocationForm` | `getTripSnapshot` | ACTIVEメンバー | 未入力時も撮影と金額入力を等価に提示 |
 | `/t/:tripId/settle` | `SettlementPage`, `TransferList` | `listSettlements` | 閲覧はACTIVE、作成・確定はOWNER/ORGANIZER | 対象支出なしを説明し支出タブへ戻す |
 | `/join/:inviteToken` | `JoinPage`, `DisplayNameForm` | なし | 匿名認証後に `acceptInvitation`。tokenをログ・分析へ送らない | 無効・期限切れ・上限到達をProblem別に表示 |
+| `/recover/:recoveryToken` | `RecoveryPage` | なし | 新しいFirebase UIDで `acceptMemberRecovery`。tokenをログ・分析へ送らない | 無効・期限切れ・使用済み・UID競合・上限到達をProblem別に表示 |
 | `/candidates/import` | `ShareImportPage`, `ImportConfirmForm` | `listTrips`, `getTripSnapshot` | フェーズ2。保存前に旅行・枠・URLを確認 | 対象の計画中旅行がなければ作成導線 |
 
 旅行作成はURLを新設せず `/` 上のダイアログとして `createTrip` を呼ぶ。支出の確認・

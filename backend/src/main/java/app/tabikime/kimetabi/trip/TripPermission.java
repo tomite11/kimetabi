@@ -1,0 +1,17 @@
+package app.tabikime.kimetabi.trip;
+
+public enum TripPermission {
+    VIEW_TRIP,
+    UPDATE_TRIP,
+    CREATE_CANDIDATE,
+    VOTE,
+    ADD_EXPENSE,
+    ADOPT_CANDIDATE,
+    CHANGE_DEADLINE,
+    CORRECT_EXPENSE,
+    CREATE_SETTLEMENT,
+    CONFIRM_SETTLEMENT,
+    MANAGE_MEMBERS,
+    DELETE_TRIP,
+    TRANSFER_OWNER
+}

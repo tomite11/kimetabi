@@ -1033,6 +1033,16 @@ MVPは日本円のみとし、支出ごとに次の順序で負担額を確定�
 - 退出・削除は論理削除とし、過去の投票・支出・送金記録を保持する。未精算残高があるメンバーは精算完了まで削除できない
 - OWNERは他のACTIVEメンバーへOWNERを移譲するまで退出できない
 - 招待受取・名前入力にはIPおよびトークン単位のレート制限を設ける
+- 招待・復旧tokenの受取は、PostgreSQLにIP hashおよびtoken hash単位の固定windowを
+  保存し、それぞれ15分あたり5回までとする。6回目以降は`429 Too Many Requests`と
+  `Retry-After: 900`を返す。IPアドレス自体は保存しない
+- 復旧tokenの有効期限は24時間とする
+- 招待発行responseは招待IDを返し、OWNERは
+  `DELETE /api/trips/{tripId}/invitations/{invitationId}` で未使用tokenを個別に
+  失効できる。複数の単回招待は並行して有効にできる
+- Cloud Runで転送元IPを利用する場合は、Googleのproxyを経由する環境だけで
+  `TRUST_GOOGLE_FORWARDED_FOR=true`を設定し、`X-Forwarded-For`の末尾にGoogleが
+  追加した2要素のうちclient側を使用する。未信頼環境ではremote addressを使用する
 
 #### 7.6.3 Firebase AuthenticationとSpring Security
 
@@ -1079,6 +1089,7 @@ Spring SecurityのカスタムフィルターでFirebase Admin SDKの `verifyIdT
 /t/{tripId}/expenses/new   支出の記録
 /t/{tripId}/settle         精算
 /join/{inviteToken}        招待の受け取り
+/recover/{recoveryToken}   メンバー資格情報の復旧
 /candidates/import         Web Share Targetの受け口
 ```
 
@@ -1381,6 +1392,9 @@ POST   /internal/outbox/dispatch                          Cloud Scheduler専用
   オブジェクトキーに使わない。アップロード後は完了APIでStorage上の実サイズと
   content typeを検証してからUPLOADEDにする。未完了・失敗オブジェクトは定期削除
   対象とする
+- **招待・復旧の制限**: 招待は7日、復旧は24時間で失効する。受取試行は
+  PostgreSQLの固定windowでIP hash／token hashごとに15分5回へ制限する。
+  招待はIDを持ち、OWNERが未使用tokenを個別失効できる
 - **業務API初版**: `openapi/openapi.json` をM0の業務API契約とする。旅行を
   親リソースとし、書き込みは許可フィールドだけのrequest schema、競合は現在の
   安全なresource表現を伴うProblem Details、一覧は最大100件のカーソル方式とする

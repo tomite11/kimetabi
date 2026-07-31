@@ -251,6 +251,23 @@ public class TripRepository {
                 .optional();
     }
 
+    Optional<StoredMember> lockActiveMemberRole(long tripId, String firebaseUid) {
+        return jdbcClient.sql("""
+                        SELECT id, role
+                        FROM trip_member
+                        WHERE trip_id = :tripId
+                          AND firebase_uid = :firebaseUid
+                          AND status = 'ACTIVE'
+                        FOR SHARE
+                        """)
+                .param("tripId", tripId)
+                .param("firebaseUid", firebaseUid)
+                .query((resultSet, rowNumber) -> new StoredMember(
+                        resultSet.getLong("id"),
+                        MemberRole.valueOf(resultSet.getString("role"))))
+                .optional();
+    }
+
     Optional<StoredMember> findActiveMember(long tripId, long memberId) {
         return jdbcClient.sql("""
                         SELECT id, role
@@ -265,6 +282,153 @@ public class TripRepository {
                         resultSet.getLong("id"),
                         MemberRole.valueOf(resultSet.getString("role"))))
                 .optional();
+    }
+
+    Optional<StoredMember> findMember(long tripId, long memberId) {
+        return jdbcClient.sql("""
+                        SELECT id, role
+                        FROM trip_member
+                        WHERE trip_id = :tripId
+                          AND id = :memberId
+                        """)
+                .param("tripId", tripId)
+                .param("memberId", memberId)
+                .query((resultSet, rowNumber) -> new StoredMember(
+                        resultSet.getLong("id"),
+                        MemberRole.valueOf(resultSet.getString("role"))))
+                .optional();
+    }
+
+    Optional<StoredMembership> findMembership(long tripId, String firebaseUid) {
+        return jdbcClient.sql("""
+                        SELECT id, role, status
+                        FROM trip_member
+                        WHERE trip_id = :tripId
+                          AND firebase_uid = :firebaseUid
+                        """)
+                .param("tripId", tripId)
+                .param("firebaseUid", firebaseUid)
+                .query((resultSet, rowNumber) -> new StoredMembership(
+                        resultSet.getLong("id"),
+                        MemberRole.valueOf(resultSet.getString("role")),
+                        MemberStatus.valueOf(resultSet.getString("status"))))
+                .optional();
+    }
+
+    boolean insertGuestMember(long tripId, String firebaseUid, String name) {
+        return jdbcClient.sql("""
+                        INSERT INTO trip_member (
+                            trip_id, firebase_uid, name, role, status
+                        )
+                        VALUES (:tripId, :firebaseUid, :name, 'MEMBER', 'ACTIVE')
+                        ON CONFLICT (trip_id, firebase_uid) DO NOTHING
+                        """)
+                .param("tripId", tripId)
+                .param("firebaseUid", firebaseUid)
+                .param("name", name)
+                .update() == 1;
+    }
+
+    void restoreMember(long tripId, long memberId, String name) {
+        int updated = jdbcClient.sql("""
+                        UPDATE trip_member
+                        SET name = :name,
+                            status = 'ACTIVE',
+                            left_at = NULL,
+                            version = version + 1,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE trip_id = :tripId
+                          AND id = :memberId
+                          AND status <> 'ACTIVE'
+                        """)
+                .param("name", name)
+                .param("tripId", tripId)
+                .param("memberId", memberId)
+                .update();
+        if (updated != 1) {
+            throw new IllegalStateException("Inactive member could not be restored");
+        }
+    }
+
+    boolean replaceMemberUid(long tripId, long memberId, String firebaseUid) {
+        return jdbcClient.sql("""
+                        UPDATE trip_member target
+                        SET firebase_uid = :firebaseUid,
+                            version = version + 1,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE target.trip_id = :tripId
+                          AND target.id = :memberId
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM trip_member other
+                              WHERE other.trip_id = target.trip_id
+                                AND other.firebase_uid = :firebaseUid
+                                AND other.id <> target.id
+                          )
+                        """)
+                .param("firebaseUid", firebaseUid)
+                .param("tripId", tripId)
+                .param("memberId", memberId)
+                .update() == 1;
+    }
+
+    void lockUidAssignment(long tripId, String firebaseUid) {
+        jdbcClient.sql("""
+                        SELECT 1 AS acquired
+                        FROM (
+                            SELECT pg_advisory_xact_lock(
+                                hashtextextended(:firebaseUid, :tripId)
+                            )
+                        ) uid_lock
+                        """)
+                .param("firebaseUid", firebaseUid)
+                .param("tripId", tripId)
+                .query(Long.class)
+                .single();
+    }
+
+    void touchTrip(long tripId) {
+        int updated = jdbcClient.sql("""
+                        UPDATE trip
+                        SET revision = revision + 1,
+                            version = version + 1,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :tripId
+                          AND deleted_at IS NULL
+                        """)
+                .param("tripId", tripId)
+                .update();
+        if (updated != 1) {
+            throw new TripNotFoundException();
+        }
+    }
+
+    MemberResource getMemberResource(long tripId, long memberId) {
+        return jdbcClient.sql("""
+                        SELECT id, name, role, status
+                        FROM trip_member
+                        WHERE trip_id = :tripId
+                          AND id = :memberId
+                        """)
+                .param("tripId", tripId)
+                .param("memberId", memberId)
+                .query(MEMBER_ROW_MAPPER)
+                .single();
+    }
+
+    boolean slotBelongsToTrip(long tripId, long slotId) {
+        return jdbcClient.sql("""
+                        SELECT EXISTS (
+                            SELECT 1
+                            FROM slot
+                            WHERE trip_id = :tripId
+                              AND id = :slotId
+                        )
+                        """)
+                .param("tripId", tripId)
+                .param("slotId", slotId)
+                .query(Boolean.class)
+                .single();
     }
 
     Optional<StoredMember> lockActiveMember(long tripId, long memberId) {
@@ -577,5 +741,8 @@ public class TripRepository {
     }
 
     record StoredMember(long id, MemberRole role) {
+    }
+
+    record StoredMembership(long id, MemberRole role, MemberStatus status) {
     }
 }

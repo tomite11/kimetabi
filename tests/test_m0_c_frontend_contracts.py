@@ -85,7 +85,8 @@ class FrontendContractTest(unittest.TestCase):
             "/", "/t/:tripId", "/t/:tripId/plan",
             "/t/:tripId/plan/:slotId", "/t/:tripId/expenses",
             "/t/:tripId/expenses/new", "/t/:tripId/settle",
-            "/join/:inviteToken", "/candidates/import",
+            "/join/:inviteToken", "/recover/:recoveryToken",
+            "/candidates/import",
         ]
         for route in routes:
             self.assertIn(f"`{route}`", self.screen_map)

@@ -21,17 +21,20 @@ public class TripService {
     private final ObjectMapper objectMapper;
     private final InitialSlotFactory initialSlotFactory;
     private final TripPhasePolicy phasePolicy;
+    private final TripAuthorizationService authorization;
 
     public TripService(
             TripRepository repository,
             ObjectMapper objectMapper,
             InitialSlotFactory initialSlotFactory,
-            TripPhasePolicy phasePolicy
+            TripPhasePolicy phasePolicy,
+            TripAuthorizationService authorization
     ) {
         this.repository = repository;
         this.objectMapper = objectMapper;
         this.initialSlotFactory = initialSlotFactory;
         this.phasePolicy = phasePolicy;
+        this.authorization = authorization;
     }
 
     @Transactional
@@ -112,13 +115,9 @@ public class TripService {
                     "request",
                     "version以外に少なくとも1項目を指定してください。");
         }
+        authorization.require(firebaseUid, tripId, TripPermission.UPDATE_TRIP);
         TripRepository.StoredTrip current = repository.findActiveMemberTrip(tripId, firebaseUid)
                 .orElseThrow(TripNotFoundException::new);
-        MemberRole role = repository.findActiveMemberRole(tripId, firebaseUid)
-                .orElseThrow(TripNotFoundException::new);
-        if (role == MemberRole.MEMBER) {
-            throw new TripForbiddenException();
-        }
         validateUpdate(current, request);
         if (!repository.updateTrip(tripId, firebaseUid, request.version(), request)) {
             TripRepository.StoredTrip latest =
@@ -138,10 +137,8 @@ public class TripService {
             long newOwnerMemberId,
             long expectedVersion
     ) {
-        TripRepository.StoredMember actor = activeMember(firebaseUid, tripId);
-        if (actor.role() != MemberRole.OWNER) {
-            throw new TripForbiddenException();
-        }
+        TripRepository.StoredMember actor = authorization.require(
+                firebaseUid, tripId, TripPermission.TRANSFER_OWNER);
         TripRepository.StoredMember target = repository
                 .lockActiveMember(tripId, newOwnerMemberId)
                 .orElseThrow(TripNotFoundException::new);
@@ -156,7 +153,7 @@ public class TripService {
 
     @Transactional
     public TripSnapshot leave(String firebaseUid, long tripId, long expectedVersion) {
-        TripRepository.StoredMember actor = activeMember(firebaseUid, tripId);
+        TripRepository.StoredMember actor = authorization.requireMembership(firebaseUid, tripId);
         actor = repository.lockActiveMember(tripId, actor.id())
                 .orElseThrow(TripNotFoundException::new);
         if (actor.role() == MemberRole.OWNER) {
@@ -178,10 +175,11 @@ public class TripService {
             long memberId,
             long expectedVersion
     ) {
-        TripRepository.StoredMember actor = activeMember(firebaseUid, tripId);
-        if (actor.role() != MemberRole.OWNER) {
-            throw new TripForbiddenException();
-        }
+        TripRepository.StoredMember actor = authorization.requireMemberResource(
+                firebaseUid,
+                tripId,
+                TripPermission.MANAGE_MEMBERS,
+                memberId);
         TripRepository.StoredMember target = repository.lockActiveMember(tripId, memberId)
                 .orElseThrow(TripNotFoundException::new);
         if (target.role() == MemberRole.OWNER) {
@@ -193,13 +191,6 @@ public class TripService {
             throw conflict(firebaseUid, tripId);
         }
         return snapshot(firebaseUid, tripId);
-    }
-
-    private TripRepository.StoredMember activeMember(String firebaseUid, long tripId) {
-        repository.findActiveMemberTrip(tripId, firebaseUid)
-                .orElseThrow(TripNotFoundException::new);
-        return repository.findActiveMember(tripId, firebaseUid)
-                .orElseThrow(TripNotFoundException::new);
     }
 
     private void ensureNoUnsettledBalance(long tripId, long memberId) {

@@ -70,8 +70,14 @@ OWNERが発行
   ないことを確認する。過去の投票・支出・送金のmember IDは変更しない。
 - token照合の成功・失敗にかかわらず、外部responseはtokenの存在を推測しにくい
   同じProblem Detailsとする。
-- IPおよびtoken hash単位でrate limitする。具体的な回数・window・保存方式は
-  `doc/SPEC.md` に定義がないため、M0では決定しない。
+- PostgreSQLの固定windowでIP hashおよびtoken hash単位に15分5回までとし、
+  6回目以降は`429`と`Retry-After: 900`を返す。生のIPは保存しない。
+- 復旧tokenは24時間で失効する。
+- 招待IDを発行responseへ含め、OWNERは未使用の招待をID指定で個別失効できる。
+  複数の単回招待は並行して有効にできる。
+- `X-Forwarded-For`はGoogle proxy経由と明示設定した環境だけで信頼し、
+  Googleが末尾へ追加するclient／load balancer要素よりclient側を採用する。
+  それ以外の環境はremote addressをrate limit keyにする。
 
 ## 脅威一覧
 

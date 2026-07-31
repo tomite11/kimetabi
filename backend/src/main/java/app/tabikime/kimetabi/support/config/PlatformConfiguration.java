@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties({
         FirebaseProperties.class,
+        ProxyProperties.class,
         SecretManagerProperties.class
 })
 public class PlatformConfiguration {

@@ -91,6 +91,7 @@ class OpenApiContractTest(unittest.TestCase):
             "/api/trips",
             "/api/trips/{tripId}",
             "/api/trips/{tripId}/invitations",
+            "/api/trips/{tripId}/invitations/{invitationId}",
             "/api/invitations/accept",
             "/api/trips/{tripId}/members/{memberId}/recovery-links",
             "/api/recoveries/accept",

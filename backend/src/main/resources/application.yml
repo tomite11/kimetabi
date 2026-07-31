@@ -29,6 +29,8 @@ server:
 kimetabi:
   firebase:
     project-id: ${FIREBASE_PROJECT_ID:}
+  proxy:
+    trust-google-forwarded-for: ${TRUST_GOOGLE_FORWARDED_FOR:false}
   secrets:
     project-id: ${GOOGLE_CLOUD_PROJECT:}
   url-fetch:
