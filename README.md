@@ -69,7 +69,8 @@ npm run typecheck
 npm run build
 ```
 
-テスト、lint、E2EはM1-C3で基盤を追加します。コマンド名は先に固定しています。
+単体・コンポーネントテスト、lint、型検査、モバイルE2Eを実行します。E2Eでは
+MSWを有効にした開発サーバーをPlaywrightが自動起動します。
 
 ```shell
 cd frontend
@@ -78,4 +79,5 @@ npm run lint
 npm run test:e2e
 ```
 
-CIの手順はM1-B3で追加します。
+PWAのService Workerはproduction buildで生成されます。認証付きの
+`/api` レスポンスはCache Storageへ保存せず、ネットワークのみを使用します。

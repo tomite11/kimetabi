@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="タビキメワリ">
+  <rect width="512" height="512" fill="#182b49"/>
+  <circle cx="256" cy="256" r="170" fill="#fbfcfa"/>
+  <path d="M150 318c60-92 132-102 218-52" fill="none" stroke="#8bc9df" stroke-width="20" stroke-linecap="round" stroke-dasharray="10 28"/>
+  <circle cx="166" cy="298" r="28" fill="#f5c451"/>
+  <circle cx="350" cy="270" r="28" fill="#f06449"/>
+  <text x="256" y="238" text-anchor="middle" fill="#182b49" font-size="112" font-family="serif" font-weight="700">旅</text>
+</svg>

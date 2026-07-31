@@ -1,3 +1,4 @@
 dist
+public/mockServiceWorker.js
 test-results
 src/api/generated

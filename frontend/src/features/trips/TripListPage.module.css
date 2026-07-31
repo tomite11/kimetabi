@@ -80,6 +80,45 @@
   line-height: 1.6;
 }
 
+.status {
+  max-width: 42rem;
+  margin-inline: auto;
+  padding-block: var(--space-8);
+  line-height: 1.7;
+}
+
+.status button {
+  min-height: 2.75rem;
+  padding-inline: var(--space-5);
+  color: var(--color-white);
+  font: inherit;
+  font-weight: 800;
+  background: var(--color-coral-deep);
+  border: 0;
+  border-radius: 999px;
+}
+
+.errorDetail {
+  color: var(--color-ink-soft);
+  font-size: var(--text-small);
+}
+
+.tripList {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.tripList li {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-small);
+}
+
 @media (max-width: 40rem) {
   .page {
     display: flex;
