@@ -141,6 +141,18 @@ public class TripRepository {
                 .optional();
     }
 
+    Optional<StoredTrip> findTrip(long tripId) {
+        return jdbcClient.sql("""
+                        SELECT *
+                        FROM trip
+                        WHERE id = :tripId
+                          AND deleted_at IS NULL
+                        """)
+                .param("tripId", tripId)
+                .query(TRIP_ROW_MAPPER)
+                .optional();
+    }
+
     List<StoredTrip> listActiveMemberTrips(
             String firebaseUid,
             Instant cursorUpdatedAt,
@@ -221,6 +233,176 @@ public class TripRepository {
                 .query(String.class)
                 .optional()
                 .map(MemberRole::valueOf);
+    }
+
+    Optional<StoredMember> findActiveMember(long tripId, String firebaseUid) {
+        return jdbcClient.sql("""
+                        SELECT id, role
+                        FROM trip_member
+                        WHERE trip_id = :tripId
+                          AND firebase_uid = :firebaseUid
+                          AND status = 'ACTIVE'
+                        """)
+                .param("tripId", tripId)
+                .param("firebaseUid", firebaseUid)
+                .query((resultSet, rowNumber) -> new StoredMember(
+                        resultSet.getLong("id"),
+                        MemberRole.valueOf(resultSet.getString("role"))))
+                .optional();
+    }
+
+    Optional<StoredMember> findActiveMember(long tripId, long memberId) {
+        return jdbcClient.sql("""
+                        SELECT id, role
+                        FROM trip_member
+                        WHERE trip_id = :tripId
+                          AND id = :memberId
+                          AND status = 'ACTIVE'
+                        """)
+                .param("tripId", tripId)
+                .param("memberId", memberId)
+                .query((resultSet, rowNumber) -> new StoredMember(
+                        resultSet.getLong("id"),
+                        MemberRole.valueOf(resultSet.getString("role"))))
+                .optional();
+    }
+
+    Optional<StoredMember> lockActiveMember(long tripId, long memberId) {
+        return jdbcClient.sql("""
+                        SELECT id, role
+                        FROM trip_member
+                        WHERE trip_id = :tripId
+                          AND id = :memberId
+                          AND status = 'ACTIVE'
+                        FOR UPDATE
+                        """)
+                .param("tripId", tripId)
+                .param("memberId", memberId)
+                .query((resultSet, rowNumber) -> new StoredMember(
+                        resultSet.getLong("id"),
+                        MemberRole.valueOf(resultSet.getString("role"))))
+                .optional();
+    }
+
+    boolean hasUnsettledBalance(long tripId, long memberId) {
+        return jdbcClient.sql("""
+                        SELECT EXISTS (
+                            SELECT 1
+                            FROM trip_member_unsettled_balance
+                            WHERE trip_id = :tripId
+                              AND member_id = :memberId
+                              AND balance_yen <> 0
+                        )
+                        """)
+                .param("tripId", tripId)
+                .param("memberId", memberId)
+                .query(Boolean.class)
+                .single();
+    }
+
+    boolean transferOwner(long tripId, long ownerId, long newOwnerId, long expectedVersion) {
+        int tripUpdated = jdbcClient.sql("""
+                        UPDATE trip
+                        SET owner_member_id = :newOwnerId,
+                            revision = revision + 1,
+                            version = version + 1,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :tripId
+                          AND owner_member_id = :ownerId
+                          AND version = :expectedVersion
+                          AND deleted_at IS NULL
+                          AND EXISTS (
+                              SELECT 1
+                              FROM trip_member target
+                              WHERE target.trip_id = trip.id
+                                AND target.id = :newOwnerId
+                                AND target.status = 'ACTIVE'
+                                AND target.role <> 'OWNER'
+                          )
+                        """)
+                .param("newOwnerId", newOwnerId)
+                .param("tripId", tripId)
+                .param("ownerId", ownerId)
+                .param("expectedVersion", expectedVersion)
+                .update();
+        if (tripUpdated != 1) {
+            return false;
+        }
+        int previousOwnerUpdated = jdbcClient.sql("""
+                        UPDATE trip_member
+                        SET role = 'ORGANIZER',
+                            version = version + 1,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE trip_id = :tripId
+                          AND id = :ownerId
+                          AND status = 'ACTIVE'
+                          AND role = 'OWNER'
+                        """)
+                .param("ownerId", ownerId)
+                .param("tripId", tripId)
+                .update();
+        if (previousOwnerUpdated != 1) {
+            throw new IllegalStateException("Active owner disappeared during ownership transfer");
+        }
+        int newOwnerUpdated = jdbcClient.sql("""
+                        UPDATE trip_member
+                        SET role = 'OWNER',
+                            version = version + 1,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE trip_id = :tripId
+                          AND id = :newOwnerId
+                          AND status = 'ACTIVE'
+                          AND role <> 'OWNER'
+                        """)
+                .param("newOwnerId", newOwnerId)
+                .param("tripId", tripId)
+                .update();
+        if (newOwnerUpdated != 1) {
+            throw new IllegalStateException(
+                    "Active ownership transfer target disappeared during ownership transfer");
+        }
+        return true;
+    }
+
+    boolean changeMemberStatus(
+            long tripId,
+            long memberId,
+            MemberStatus status,
+            long expectedVersion
+    ) {
+        int tripUpdated = jdbcClient.sql("""
+                        UPDATE trip
+                        SET revision = revision + 1,
+                            version = version + 1,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :tripId
+                          AND version = :expectedVersion
+                          AND deleted_at IS NULL
+                        """)
+                .param("tripId", tripId)
+                .param("expectedVersion", expectedVersion)
+                .update();
+        if (tripUpdated != 1) {
+            return false;
+        }
+        int memberUpdated = jdbcClient.sql("""
+                        UPDATE trip_member
+                        SET status = :status,
+                            left_at = CURRENT_TIMESTAMP,
+                            version = version + 1,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE trip_id = :tripId
+                          AND id = :memberId
+                          AND status = 'ACTIVE'
+                        """)
+                .param("status", status.name())
+                .param("tripId", tripId)
+                .param("memberId", memberId)
+                .update();
+        if (memberUpdated != 1) {
+            throw new IllegalStateException("Active member disappeared during status update");
+        }
+        return true;
     }
 
     boolean updateTrip(
@@ -392,5 +574,8 @@ public class TripRepository {
     }
 
     record IdempotencyRecord(String requestHash, String responseBody, Long resourceId) {
+    }
+
+    record StoredMember(long id, MemberRole role) {
     }
 }

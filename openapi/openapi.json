@@ -215,6 +215,133 @@
         }
       }
     },
+    "/api/trips/{tripId}/owner-transfer": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        }
+      ],
+      "post": {
+        "operationId": "transferTripOwner",
+        "tags": [
+          "Trips"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferOwnerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Snapshot after ownership transfer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripSnapshot"
+                }
+              }
+            }
+          },
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "422": {"$ref": "#/components/responses/ValidationFailed"}
+        }
+      }
+    },
+    "/api/trips/{tripId}/leave": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        }
+      ],
+      "post": {
+        "operationId": "leaveTrip",
+        "tags": [
+          "Trips"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberMutationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Snapshot retaining the departed member for history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripSnapshot"
+                }
+              }
+            }
+          },
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "422": {"$ref": "#/components/responses/ValidationFailed"}
+        }
+      }
+    },
+    "/api/trips/{tripId}/members/{memberId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        },
+        {
+          "name": "memberId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Id"
+          }
+        }
+      ],
+      "delete": {
+        "operationId": "removeTripMember",
+        "tags": [
+          "Trips"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberMutationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Snapshot retaining the removed member for history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripSnapshot"
+                }
+              }
+            }
+          },
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "422": {"$ref": "#/components/responses/ValidationFailed"}
+        }
+      }
+    },
     "/api/trips/{tripId}/invitations": {
       "parameters": [
         {
@@ -1985,6 +2112,34 @@
           },
           "voteVisibility": {
             "$ref": "#/components/schemas/VoteVisibility"
+          }
+        }
+      },
+      "MemberMutationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version"
+        ],
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          }
+        }
+      },
+      "TransferOwnerRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "memberId",
+          "version"
+        ],
+        "properties": {
+          "memberId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "version": {
+            "$ref": "#/components/schemas/Version"
           }
         }
       },

@@ -7,13 +7,13 @@ export function useCreateTripForm() {
   return useForm<CreateTripFormValues>({
     resolver: zodResolver(createTripSchema),
     defaultValues: {
-      title: "",
+      title: "新しい旅行",
       destination: "",
       startsOn: "",
       endsOn: "",
       timezone: "Asia/Tokyo",
       expectedMemberCount: 2,
-      ownerName: "",
+      ownerName: "わたし",
       voteVisibility: "ANONYMOUS",
     },
     mode: "onBlur",

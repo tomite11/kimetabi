@@ -131,6 +131,97 @@ public class TripService {
                 .orElseThrow(TripNotFoundException::new);
     }
 
+    @Transactional
+    public TripSnapshot transferOwner(
+            String firebaseUid,
+            long tripId,
+            long newOwnerMemberId,
+            long expectedVersion
+    ) {
+        TripRepository.StoredMember actor = activeMember(firebaseUid, tripId);
+        if (actor.role() != MemberRole.OWNER) {
+            throw new TripForbiddenException();
+        }
+        TripRepository.StoredMember target = repository
+                .lockActiveMember(tripId, newOwnerMemberId)
+                .orElseThrow(TripNotFoundException::new);
+        if (target.id() == actor.id()) {
+            throw new MemberLifecycleValidationException("移譲先には別のACTIVEメンバーを指定してください。");
+        }
+        if (!repository.transferOwner(tripId, actor.id(), target.id(), expectedVersion)) {
+            throw conflict(firebaseUid, tripId);
+        }
+        return snapshot(firebaseUid, tripId);
+    }
+
+    @Transactional
+    public TripSnapshot leave(String firebaseUid, long tripId, long expectedVersion) {
+        TripRepository.StoredMember actor = activeMember(firebaseUid, tripId);
+        actor = repository.lockActiveMember(tripId, actor.id())
+                .orElseThrow(TripNotFoundException::new);
+        if (actor.role() == MemberRole.OWNER) {
+            throw new MemberLifecycleValidationException(
+                    "OWNERは他のACTIVEメンバーへ移譲してから退出してください。");
+        }
+        ensureNoUnsettledBalance(tripId, actor.id());
+        if (!repository.changeMemberStatus(
+                tripId, actor.id(), MemberStatus.LEFT, expectedVersion)) {
+            throw conflict(firebaseUid, tripId);
+        }
+        return snapshotIncludingInactiveMember(tripId);
+    }
+
+    @Transactional
+    public TripSnapshot removeMember(
+            String firebaseUid,
+            long tripId,
+            long memberId,
+            long expectedVersion
+    ) {
+        TripRepository.StoredMember actor = activeMember(firebaseUid, tripId);
+        if (actor.role() != MemberRole.OWNER) {
+            throw new TripForbiddenException();
+        }
+        TripRepository.StoredMember target = repository.lockActiveMember(tripId, memberId)
+                .orElseThrow(TripNotFoundException::new);
+        if (target.role() == MemberRole.OWNER) {
+            throw new MemberLifecycleValidationException("ACTIVEなOWNERは削除できません。");
+        }
+        ensureNoUnsettledBalance(tripId, target.id());
+        if (!repository.changeMemberStatus(
+                tripId, target.id(), MemberStatus.REMOVED, expectedVersion)) {
+            throw conflict(firebaseUid, tripId);
+        }
+        return snapshot(firebaseUid, tripId);
+    }
+
+    private TripRepository.StoredMember activeMember(String firebaseUid, long tripId) {
+        repository.findActiveMemberTrip(tripId, firebaseUid)
+                .orElseThrow(TripNotFoundException::new);
+        return repository.findActiveMember(tripId, firebaseUid)
+                .orElseThrow(TripNotFoundException::new);
+    }
+
+    private void ensureNoUnsettledBalance(long tripId, long memberId) {
+        if (repository.hasUnsettledBalance(tripId, memberId)) {
+            throw new MemberLifecycleValidationException(
+                    "未精算残高があるメンバーは退出または削除できません。");
+        }
+    }
+
+    private MemberLifecycleConflictException conflict(String firebaseUid, long tripId) {
+        return new MemberLifecycleConflictException(snapshot(firebaseUid, tripId));
+    }
+
+    private TripSnapshot snapshotIncludingInactiveMember(long tripId) {
+        TripRepository.StoredTrip trip = repository.findTrip(tripId)
+                .orElseThrow(TripNotFoundException::new);
+        return new TripSnapshot(
+                toResource(trip),
+                repository.listMembers(tripId),
+                repository.listSlots(tripId));
+    }
+
     private void validate(CreateTripRequest request) {
         if (request.endsOn().isBefore(request.startsOn())) {
             throw new TripValidationException(

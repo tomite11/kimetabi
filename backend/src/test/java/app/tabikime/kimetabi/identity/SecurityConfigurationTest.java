@@ -53,6 +53,21 @@ class SecurityConfigurationTest {
     }
 
     @Test
+    void acceptsCaseInsensitiveBearerScheme() throws Exception {
+        mockMvc.perform(get("/api/session")
+                        .header("Authorization", "bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.firebaseUid").value("firebase-user-1"));
+    }
+
+    @Test
+    void rejectsBlankBearerToken() throws Exception {
+        mockMvc.perform(get("/api/session")
+                        .header("Authorization", "Bearer "))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void supportsTestPrincipalWithoutCreatingProductionCredentials() throws Exception {
         AppPrincipal principal = new AppPrincipal("fixture-user");
         var authentication =

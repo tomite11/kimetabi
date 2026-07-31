@@ -38,9 +38,12 @@ cd backend
 ```
 
 結合テストはTestcontainersからPostgreSQLを起動するため、Dockerが必要です。
-Firebase Admin SDKの実装はM2で接続します。M1では検証interfaceとSpring Security
-Testによるテスト専用`AppPrincipal`注入を提供し、本番用の固定トークンやテスト用
-認証ヘッダーは用意しません。
+Firebase Admin SDKは`FIREBASE_PROJECT_ID`が設定されている場合にApplication Default
+Credentialsで初期化され、Bearerとして受け取ったFirebase ID tokenを検証して
+`AppPrincipal`へ変換します。ローカルで本番認証を確認する場合は
+`gcloud auth application-default login`などでADCを用意してください。固定トークン、
+サービスアカウント鍵、テスト用認証ヘッダーはソースへ置きません。テストでは
+Spring Security Testによるテスト専用`AppPrincipal`注入を使用します。
 
 設定は環境変数に加え、Cloud Runでマウントする
 `/var/run/secrets/kimetabi/` のconfig treeから外部注入できます。

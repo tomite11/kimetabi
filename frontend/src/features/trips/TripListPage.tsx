@@ -1,10 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { Link } from "react-router";
 
+import { CreateTripForm } from "./CreateTripForm";
 import { tripListQuery } from "./tripQueries";
 import styles from "./TripListPage.module.css";
 
 export function TripListPage() {
   const tripsQuery = useQuery(tripListQuery);
+  const [isCreating, setIsCreating] = useState(false);
 
   if (tripsQuery.isPending) {
     return (
@@ -27,16 +31,36 @@ export function TripListPage() {
     );
   }
 
+  if (isCreating) {
+    return <CreateTripForm onCancel={() => setIsCreating(false)} />;
+  }
+
   if (tripsQuery.data.items.length > 0) {
     return (
       <section className={styles.page} aria-labelledby="trip-list-title">
-        <p className={styles.eyebrow}>あなたの旅行</p>
-        <h1 id="trip-list-title">旅行一覧</h1>
+        <div className={styles.listHeading}>
+          <div>
+            <p className={styles.eyebrow}>あなたの旅行</p>
+            <h1 id="trip-list-title">旅行一覧</h1>
+          </div>
+          <button
+            className={styles.compactAction}
+            type="button"
+            onClick={() => setIsCreating(true)}
+          >
+            旅行を作る
+          </button>
+        </div>
         <ul className={styles.tripList}>
           {tripsQuery.data.items.map((trip) => (
             <li key={trip.id}>
-              <strong>{trip.title}</strong>
-              <span>{trip.destination}</span>
+              <Link to={`/t/${trip.id}`}>
+                <strong>{trip.title}</strong>
+                <span>{trip.destination}</span>
+                <span className={styles.tripDate}>
+                  {trip.startsOn} – {trip.endsOn}
+                </span>
+              </Link>
             </li>
           ))}
         </ul>
@@ -51,14 +75,14 @@ export function TripListPage() {
         <span className={styles.journeyDot} />
       </div>
       <p className={styles.eyebrow}>旅のはじまり</p>
-      <h1 id="trip-list-title">次の旅を、ここから一本につなごう。</h1>
-      <p className={styles.description}>まずは新しい旅行を作ります。</p>
-      <button className={styles.primaryAction} type="button" disabled>
+      <h1 id="trip-list-title">旅行一覧</h1>
+      <button
+        className={styles.primaryAction}
+        type="button"
+        onClick={() => setIsCreating(true)}
+      >
         旅行を作る
       </button>
-      <p className={styles.notice} role="status">
-        旅行作成は次の実装ステップで利用できるようになります。
-      </p>
     </section>
   );
 }

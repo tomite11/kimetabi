@@ -5,6 +5,12 @@
   padding-block: clamp(var(--space-6), 8vw, var(--space-10));
 }
 
+.createdPage,
+.createForm {
+  max-width: 42rem;
+  margin-inline: auto;
+}
+
 .journey {
   display: flex;
   align-items: center;
@@ -67,17 +73,29 @@
   box-shadow: 0 0.5rem 1.5rem rgb(240 100 73 / 24%);
 }
 
-.primaryAction:disabled {
+.primaryAction:disabled,
+.secondaryAction:disabled {
   cursor: not-allowed;
   opacity: 0.72;
 }
 
-.notice {
-  max-width: 22rem;
-  margin: var(--space-3) 0 0;
-  color: var(--color-ink-soft);
-  font-size: var(--text-small);
-  line-height: 1.6;
+.listHeading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.compactAction,
+.secondaryAction {
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-5);
+  color: var(--color-coral-deep);
+  font: inherit;
+  font-weight: 800;
+  background: var(--color-white);
+  border: 2px solid var(--color-coral);
+  border-radius: 999px;
 }
 
 .status {
@@ -111,12 +129,179 @@
 }
 
 .tripList li {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-5);
   background: var(--color-white);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-small);
+  box-shadow: 0 0.35rem 1rem rgb(24 43 73 / 8%);
+}
+
+.tripList a {
+  display: grid;
+  gap: var(--space-2);
+  min-height: 6rem;
+  padding: var(--space-5);
+  color: inherit;
+  text-decoration: none;
+}
+
+.tripList strong {
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+}
+
+.tripDate {
+  color: var(--color-ink-soft);
+  font-size: var(--text-small);
+}
+
+.createForm {
+  display: grid;
+  gap: var(--space-6);
+  padding-block: var(--space-6);
+}
+
+.formHeading h2 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+}
+
+.formHeading > p:last-child {
+  margin-block-end: 0;
+  color: var(--color-ink-soft);
+  line-height: 1.6;
+}
+
+.dateFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.field {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.field label {
+  font-weight: 800;
+}
+
+.field input {
+  width: 100%;
+  min-height: 3rem;
+  padding: var(--space-3);
+  color: var(--color-ink);
+  font: inherit;
+  background: var(--color-white);
+  border: 2px solid var(--color-line);
+  border-radius: var(--radius-small);
+}
+
+.field input[aria-invalid="true"] {
+  border-color: var(--color-coral-deep);
+}
+
+.memberCount {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.memberCount input {
+  max-width: 8rem;
+}
+
+.fieldHint,
+.fieldError {
+  margin: 0;
+  font-size: var(--text-small);
+}
+
+.fieldHint {
+  color: var(--color-ink-soft);
+}
+
+.fieldError,
+.submitError {
+  color: var(--color-coral-deep);
+  font-weight: 700;
+}
+
+.submitError {
+  margin: 0;
+  padding: var(--space-3);
+  background: rgb(240 100 73 / 10%);
+  border-radius: var(--radius-small);
+}
+
+.formActions {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: var(--space-3);
+}
+
+.formActions .primaryAction {
+  width: auto;
+  margin: 0;
+}
+
+.createdPage {
+  padding-block: var(--space-6);
+}
+
+.createdPage h1 {
+  margin-block: 0;
+  font-family: var(--font-serif);
+  font-size: clamp(2rem, 7vw, 3.5rem);
+}
+
+.destination {
+  margin-block: var(--space-3) var(--space-6);
+  color: var(--color-ink-soft);
+  font-size: 1.125rem;
+}
+
+.tripFacts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  overflow: hidden;
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-small);
+}
+
+.tripFacts div {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.tripFacts div + div {
+  border-inline-start: 1px solid var(--color-line);
+}
+
+.tripFacts dt {
+  color: var(--color-ink-soft);
+  font-size: var(--text-small);
+  font-weight: 700;
+}
+
+.tripFacts dd {
+  margin: 0;
+  font-weight: 800;
+}
+
+.createdNotice {
+  margin-block: var(--space-5);
+  color: var(--color-ink-soft);
+}
+
+.textLink {
+  color: var(--color-coral-deep);
+  font-weight: 800;
 }
 
 @media (max-width: 40rem) {
@@ -128,6 +313,31 @@
 
   .primaryAction {
     margin-block-start: auto;
+  }
+
+  .listHeading {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .dateFields,
+  .tripFacts {
+    grid-template-columns: 1fr;
+  }
+
+  .tripFacts div + div {
+    border-block-start: 1px solid var(--color-line);
+    border-inline-start: 0;
+  }
+
+  .formActions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .formActions .primaryAction,
+  .formActions .secondaryAction {
+    width: 100%;
   }
 }
 
@@ -141,5 +351,15 @@
       opacity: 0;
       transform: translateX(-1rem);
     }
+  }
+}
+
+@media (hover: hover) {
+  .tripList a:hover {
+    background: color-mix(in srgb, var(--color-mist), transparent 45%);
+  }
+
+  .primaryAction:hover:not(:disabled) {
+    background: var(--color-coral-deep);
   }
 }
