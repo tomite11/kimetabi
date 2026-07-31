@@ -1389,3 +1389,10 @@ POST   /internal/outbox/dispatch                          Cloud Scheduler専用
 - **SSRF制限**: 初期URLと全redirect先で全A/AAAA addressを検証し、検証済みIPへ
   接続をpinする。80/443、connect 3秒、全体5秒、展開後本文2 MiB、redirect 5回を
   上限とする（`doc/URL_FETCH_SECURITY.md` 参照）
+- **フロントエンド画面・状態契約**: ルート、権限、空状態、レスポンシブ／
+  アクセシビリティ要件は `doc/FRONTEND_SCREEN_MAP.md`、TanStack Query・フォーム・
+  Dexie・一時状態の所有境界は `doc/FRONTEND_STATE_DESIGN.md` を契約とする。
+  OpenAPI型は `openapi/openapi.json` から
+  `frontend/src/api/generated/schema.d.ts` へ生成し、手書きDTOを作らない。
+  主要フローの受け入れシナリオとAPI例は `doc/E2E_SCENARIOS.md` および
+  `openapi/fixtures/m0-c3-api-examples.json` を使用する。

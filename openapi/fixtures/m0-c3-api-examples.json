@@ -1,0 +1,69 @@
+{
+  "examples": [
+    {
+      "name": "empty-trip-list",
+      "operationId": "listTrips",
+      "schemaRef": "#/components/schemas/TripPage",
+      "body": {
+        "items": [],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "empty-expense-list",
+      "operationId": "listExpenses",
+      "schemaRef": "#/components/schemas/ExpensePage",
+      "body": {
+        "items": [],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "empty-settlement-list",
+      "operationId": "listSettlements",
+      "schemaRef": "#/components/schemas/SettlementPage",
+      "body": {
+        "items": [],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "create-trip-request",
+      "operationId": "createTrip",
+      "schemaRef": "#/components/schemas/CreateTripRequest",
+      "body": {
+        "title": "瀬戸内の旅",
+        "destination": "香川県",
+        "startsOn": "2026-09-19",
+        "endsOn": "2026-09-21",
+        "timezone": "Asia/Tokyo",
+        "expectedMemberCount": 4,
+        "ownerName": "あおい",
+        "voteVisibility": "NAMED"
+      }
+    },
+    {
+      "name": "url-candidate-request",
+      "operationId": "createCandidate",
+      "schemaRef": "#/components/schemas/CreateCandidateRequest",
+      "body": {
+        "url": "https://example.com/stay",
+        "note": "駅から徒歩圏",
+        "tags": ["宿"]
+      }
+    },
+    {
+      "name": "conflict-problem",
+      "operationId": "updateCandidate",
+      "schemaRef": "#/components/schemas/Problem",
+      "body": {
+        "type": "https://api.tabikime.app/problems/version-conflict",
+        "title": "Version conflict",
+        "status": 409,
+        "code": "VERSION_CONFLICT",
+        "message": "別の更新が先に保存されました",
+        "traceId": "01J4M0C3EXAMPLE"
+      }
+    }
+  ]
+}
