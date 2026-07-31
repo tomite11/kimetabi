@@ -24,6 +24,7 @@ cd backend
 DATABASE_URL=jdbc:postgresql://localhost:5432/kimetabi \
 DATABASE_USERNAME=kimetabi \
 DATABASE_PASSWORD=kimetabi \
+FIREBASE_PROJECT_ID=your-firebase-project \
 ./mvnw spring-boot:run
 ```
 
@@ -37,6 +38,16 @@ cd backend
 ```
 
 結合テストはTestcontainersからPostgreSQLを起動するため、Dockerが必要です。
+Firebase Admin SDKの実装はM2で接続します。M1では検証interfaceとSpring Security
+Testによるテスト専用`AppPrincipal`注入を提供し、本番用の固定トークンやテスト用
+認証ヘッダーは用意しません。
+
+設定は環境変数に加え、Cloud Runでマウントする
+`/var/run/secrets/kimetabi/` のconfig treeから外部注入できます。
+`/actuator/health` は未認証で公開し、その他のActuator endpointは認証を要求します。
+ログは既定でJSON形式となり、`traceId` を含みます。読みやすいローカルログが必要な
+場合だけ `SPRING_PROFILES_ACTIVE=local` を指定してください。
+
 ローカルDBを停止する場合は次を実行します。
 
 ```shell

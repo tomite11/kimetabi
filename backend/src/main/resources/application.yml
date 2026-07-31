@@ -1,9 +1,38 @@
 spring:
   application:
     name: kimetabi-backend
+  autoconfigure:
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+  config:
+    import: optional:configtree:/var/run/secrets/kimetabi/
   datasource:
     url: ${DATABASE_URL}
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
   flyway:
     locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+
+server:
+  shutdown: graceful
+
+kimetabi:
+  firebase:
+    project-id: ${FIREBASE_PROJECT_ID:}
+  secrets:
+    project-id: ${GOOGLE_CLOUD_PROJECT:}
+  url-fetch:
+    connect-timeout: 3s
+    total-timeout: 5s
+    max-body-bytes: 2097152
+    max-redirects: 5

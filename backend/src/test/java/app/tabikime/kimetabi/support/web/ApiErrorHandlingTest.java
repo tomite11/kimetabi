@@ -19,11 +19,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -101,12 +104,23 @@ class ApiErrorHandlingTest {
     }
 
     @Configuration(proxyBeanMethods = false)
-    @EnableAutoConfiguration(exclude = DataSourceAutoConfiguration.class)
+    @EnableAutoConfiguration(exclude = {
+            DataSourceAutoConfiguration.class,
+            SecurityAutoConfiguration.class
+    })
     static class TestConfiguration {
 
         @Bean
         TestController testController() {
             return new TestController();
+        }
+
+        @Bean
+        SecurityFilterChain testSecurityFilterChain(HttpSecurity http) throws Exception {
+            return http
+                    .csrf(csrf -> csrf.disable())
+                    .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
+                    .build();
         }
     }
 
