@@ -1,0 +1,31 @@
+.page {
+  display: grid;
+  min-height: 100svh;
+  padding: var(--space-6);
+  place-content: center;
+  text-align: center;
+}
+
+.status {
+  margin: 0;
+  color: var(--color-coral-deep);
+  font-size: var(--text-small);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.page h1 {
+  margin-block: var(--space-3);
+  font-family: var(--font-serif);
+}
+
+.page p {
+  color: var(--color-ink-soft);
+}
+
+.link {
+  justify-self: center;
+  margin-block-start: var(--space-5);
+  color: var(--color-ink);
+  font-weight: 800;
+}

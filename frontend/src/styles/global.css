@@ -1,0 +1,72 @@
+:root {
+  color: #182b49;
+  background: #dcecf4;
+  font-family:
+    "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+
+  --color-ink: #182b49;
+  --color-ink-soft: #53627a;
+  --color-mist: #dcecf4;
+  --color-sky: #8bc9df;
+  --color-paper: #fbfcfa;
+  --color-white: #ffffff;
+  --color-coral: #f06449;
+  --color-coral-deep: #b63c29;
+  --color-leaf: #8fc77a;
+  --color-sun: #f5c451;
+  --color-line: #d5dee6;
+  --font-serif: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  --text-small: 0.875rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-8: 3rem;
+  --space-10: 5rem;
+  --radius-small: 0.75rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 20rem;
+  min-height: 100%;
+  background: var(--color-mist);
+}
+
+body {
+  min-width: 20rem;
+  min-height: 100vh;
+  margin: 0;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-sun);
+  outline-offset: 3px;
+}
+
+::selection {
+  color: var(--color-white);
+  background: var(--color-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

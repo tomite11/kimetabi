@@ -43,4 +43,39 @@ cd backend
 docker compose -f backend/compose.yaml down
 ```
 
-フロントエンドとCIの手順は、それぞれM1-C1〜C3、M1-B3で追加します。
+## フロントエンド
+
+Node.js 22以降を使用します。初回だけ依存関係をインストールします。
+
+```shell
+cd frontend
+npm install
+```
+
+開発サーバーを起動します。
+
+```shell
+cd frontend
+npm run dev
+```
+
+OpenAPI型は `openapi/openapi.json` から生成します。型検査とbuild時にも自動生成
+されます。
+
+```shell
+cd frontend
+npm run generate:api
+npm run typecheck
+npm run build
+```
+
+テスト、lint、E2EはM1-C3で基盤を追加します。コマンド名は先に固定しています。
+
+```shell
+cd frontend
+npm test
+npm run lint
+npm run test:e2e
+```
+
+CIの手順はM1-B3で追加します。
