@@ -75,15 +75,9 @@ class M0A1DocumentTest(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.document)
 
-    def test_does_not_silently_resolve_cross_lane_open_questions(self):
-        for open_question in (
-            "投票の匿名・記名設定",
-            "DRAFT画像アップロード",
-            "監査履歴を汎用イベント",
-            "Share TargetをMVP",
-        ):
-            with self.subTest(open_question=open_question):
-                self.assertIn(open_question, self.document)
+    def test_hands_resolved_and_open_questions_to_the_right_documents(self):
+        self.assertIn("`doc/SPEC.md` 5.7、11.1", self.document)
+        self.assertIn("Share TargetをMVP", self.document)
 
 
 if __name__ == "__main__":

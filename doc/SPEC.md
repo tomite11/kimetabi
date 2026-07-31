@@ -401,6 +401,32 @@ CREATE TABLE outbox_event (
 - URL取り込みやOCRのジョブ要求にも同じ仕組みを使い、DBコミット後にCloud Tasksへ投入する
 - Cloud Tasksのタスク名にはOutbox IDを含め、Outbox再送による重複登録を抑止する。タスクハンドラー側も処理済み状態を確認して冪等にする
 
+### 5.7 MVP実スキーマの設計判断
+
+5.0〜5.6のDDLは概念説明用の例とし、MVPの実装可能なテーブル定義案は
+`doc/DATABASE_SCHEMA.sql` に置く。Flyway migrationはM1以降で同案を前進可能な
+単位へ分割する。特に次を確定する。
+
+- MVPの金額列は整数円の `BIGINT` とし、CONFIRMED支出は `currency = 'JPY'`、
+  `base_amount = amount` とする。多通貨用の `fx_rate` はMVPスキーマへ入れない
+- `expense_share.final_amount` にCONFIRMED時の確定負担額を保存する。按分入力の
+  weightやfixed amountだけから精算時に再計算しない
+- `settlement_expense` と `settlement_share` に、精算計算時の支出version、
+  支払者、支出額、確定負担額を固定する
+- 再精算へ織り込んだ既払送金は `settlement_source_transfer` に送金version、
+  金額、状態を固定する。時刻cutoffだけで精算対象を決めない
+- 監査は追記専用の共通 `audit_event` を採用する。支出訂正と送金の代理操作では
+  操作者、操作、対象、対象version、変更前後、trace IDを保存する。トークン、
+  署名付きURL、画像の秘密情報を監査JSONへ保存しない
+- 旅行に `vote_visibility`、候補に作成者・メモ・自由タグ、支出に作成者、
+  画像にアップロード状態を持たせる
+- 旅行横断のID取り違えをDBでも防ぐため、旅行配下の主要な外部キーは
+  `(resource_id, trip_id)` の複合外部キーとする
+
+DBのCHECK制約だけでは表現できない「ACTIVEなOWNERが必ず1人」「確定負担額合計と
+支出額の一致」「採択候補と枠の一致」「確定済み精算の不変性」は、サービスの同一
+トランザクション内で検証し、DB結合テストで保証する。
+
 ---
 
 ## 6. 機能仕様
@@ -643,18 +669,23 @@ public class UrlMetadataService {
 
     private static final int TIMEOUT_MS = 3000;
     private static final int MAX_BODY_BYTES = 2 * 1024 * 1024;
+    private final SafeUrlFetcher safeUrlFetcher;
+
+    public UrlMetadataService(SafeUrlFetcher safeUrlFetcher) {
+        this.safeUrlFetcher = safeUrlFetcher;
+    }
 
     public CandidateMetadata extract(String rawUrl) {
         URI url = UrlSanitizer.validate(rawUrl);   // SSRF対策
 
         Document doc;
+        FetchResult result;
         try {
-            doc = Jsoup.connect(url.toString())
-                .userAgent("TripPlannerBot/1.0 (+https://example.com/bot)")
-                .timeout(TIMEOUT_MS)
-                .maxBodySize(MAX_BODY_BYTES)
-                .followRedirects(true)
-                .get();
+            // 自動redirectは使わない。各hopの全addressを検証し、
+            // 検証済みIPへ接続をpinするfetcherを利用する。
+            result = safeUrlFetcher.fetch(
+                url, TIMEOUT_MS, MAX_BODY_BYTES);
+            doc = Jsoup.parse(result.body(), result.finalUrl().toString());
         } catch (IOException e) {
             throw new MetadataFetchException(e);   // ジョブ側で再試行可否を分類
         }
@@ -662,7 +693,7 @@ public class UrlMetadataService {
         return jsonLd(doc)
             .or(() -> ogp(doc))
             .orElseGet(() -> titleOnly(doc))
-            .withSourceUrl(url);
+            .withSourceUrl(result.finalUrl());
     }
 
     private Optional<CandidateMetadata> ogp(Document doc) {
@@ -724,6 +755,8 @@ public final class UrlSanitizer {
 - **Cloud Run向け防御** — 80/443以外のポート、Googleメタデータサーバー、プライベート・ループバック・リンクローカルアドレスを明示的に拒否する。将来はURL取得を権限の少ない専用Cloud Runサービスへ分離する
 
 短縮URL（`goo.gl`, `s.tabelog.com` など）は必ず来るため、リダイレクト追跡は実装必須。
+具体的な全hop検証、DNS pinning、timeout、本文上限、失敗分類は
+`doc/URL_FETCH_SECURITY.md` と `doc/security/url-fetch-policy.json` を契約とする。
 
 #### 6.3.7 キャッシュと重複
 
@@ -1059,7 +1092,7 @@ Share Targetの受け口は**直近の計画中の旅行を初期選択**する�
 
 ```json
 {
-  "eventId": "01K...",
+  "eventId": "550e8400-e29b-41d4-a716-446655440000",
   "tripId": 123,
   "tripRevision": 842,
   "type": "CANDIDATE_METADATA_COMPLETED",
@@ -1328,3 +1361,31 @@ POST   /internal/outbox/dispatch                          Cloud Scheduler専用
 - **Google Cloud構成**: Firebase Hosting／Authentication、Cloud Run、Cloud SQL、Cloud Tasks、Cloud Storage、Cloud Visionを東京リージョン中心に構成し、Kubernetes・JobRunr・FirestoreはMVPで使用しない（8.1参照）
 - **Cloud Run課金**: 開発・クローズドβはrequest-based billing、`min instances = 0`、`max instances = 1` とし、Outbox回復をCloud Schedulerから起動する。一般公開後に実測を基に再評価する（8.1.2参照）
 - **通貨**: MVPは日本円のみとし、多通貨・為替換算と為替レート取得元の選定はMVP仕様から除外する（9参照）
+- **確定負担額と精算スナップショット**: CONFIRMED時の円単位負担額を
+  `expense_share.final_amount` に保存し、精算には対象支出version、支払者、
+  支出額、負担額、織り込み済み送金を関連テーブルで固定する。時刻cutoffだけには
+  依存しない（5.7参照）
+- **監査モデル**: 支出訂正と送金代理操作を含む業務監査は追記専用の共通
+  `audit_event` に統一し、秘密情報を変更前後JSONへ含めない（5.7参照）
+- **投票公開設定**: `NAMED` では各投票をメンバー情報付きで返す。
+  `ANONYMOUS` ではOWNER/ORGANIZERを含む全利用者に集計、自分の投票、自分が
+  未投票かだけを返し、他者の投票者ID・選択・理由を返さない。監査上のactorは
+  サーバー内に保持する
+- **写真アップロード**: DRAFTを先に冪等作成し、その旅行とDRAFTへの編集権限を
+  検証してから、有効期限の短い署名付きアップロードURLを発行する。MVPで許可する
+  MIME typeはJPEG、PNG、WebP、1画像の上限は10 MiBとし、元ファイル名を
+  オブジェクトキーに使わない。アップロード後は完了APIでStorage上の実サイズと
+  content typeを検証してからUPLOADEDにする。未完了・失敗オブジェクトは定期削除
+  対象とする
+- **業務API初版**: `openapi/openapi.json` をM0の業務API契約とする。旅行を
+  親リソースとし、書き込みは許可フィールドだけのrequest schema、競合は現在の
+  安全なresource表現を伴うProblem Details、一覧は最大100件のカーソル方式とする
+- **セキュリティ境界**: Firebase認証と旅行内認可を分離し、RESTとSTOMPを独立
+  認可する。Cloud TasksとSchedulerは別service accountと環境別audienceで
+  `/internal/**` を呼ぶ。詳細は `doc/SECURITY_BOUNDARIES.md` を契約とする
+- **非同期event**: 共通envelopeとevent名は
+  `doc/ASYNC_EVENT_CONTRACTS.md` および `openapi/openapi.json` の `TripEvent` を
+  契約とし、少なくとも1回配送、event ID重複排除、revision gap時のREST同期を行う
+- **SSRF制限**: 初期URLと全redirect先で全A/AAAA addressを検証し、検証済みIPへ
+  接続をpinする。80/443、connect 3秒、全体5秒、展開後本文2 MiB、redirect 5回を
+  上限とする（`doc/URL_FETCH_SECURITY.md` 参照）

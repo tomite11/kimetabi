@@ -1,0 +1,3722 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "タビキメワリ Business API",
+    "version": "0.1.0",
+    "description": "M0-A3 business API contract. Authentication, invite, internal task, upload transport, and event contracts are completed with the B lane."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "security": [
+    {
+      "firebaseBearer": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Trips"
+    },
+    {
+      "name": "Planning"
+    },
+    {
+      "name": "Expenses"
+    },
+    {
+      "name": "Settlements"
+    }
+  ],
+  "paths": {
+    "/api/trips": {
+      "get": {
+        "operationId": "listTrips",
+        "tags": [
+          "Trips"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Cursor"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ACTIVE membership trips",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createTrip",
+        "tags": [
+          "Trips"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTripRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Trip, OWNER member, and initial slots created atomically",
+            "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripSnapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/trips/{tripId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        }
+      ],
+      "get": {
+        "operationId": "getTripSnapshot",
+        "tags": [
+          "Trips"
+        ],
+        "responses": {
+          "200": {
+            "description": "Current trip snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripSnapshot"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateTrip",
+        "tags": [
+          "Trips"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTripRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated trip",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Trip"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/trips/{tripId}/invitations": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        }
+      ],
+      "post": {
+        "operationId": "createInvitation",
+        "tags": [
+          "Trips"
+        ],
+        "responses": {
+          "201": {
+            "description": "Single-use invitation link; plaintext token is returned only here and must not be logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationLink"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/invitations/accept": {
+      "post": {
+        "operationId": "acceptInvitation",
+        "tags": [
+          "Trips"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInvitationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Existing membership restored for the same UID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripSnapshot"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Membership created and token consumed atomically",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripSnapshot"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/trips/{tripId}/members/{memberId}/recovery-links": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        },
+        {
+          "$ref": "#/components/parameters/MemberId"
+        }
+      ],
+      "post": {
+        "operationId": "createMemberRecoveryLink",
+        "tags": [
+          "Trips"
+        ],
+        "responses": {
+          "201": {
+            "description": "Single-use recovery link; plaintext token is returned only here and must not be logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryLink"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/recoveries/accept": {
+      "post": {
+        "operationId": "acceptMemberRecovery",
+        "tags": [
+          "Trips"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptRecoveryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Member reference moved to the authenticated Firebase UID and token consumed atomically",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Member"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/trips/{tripId}/slots": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        }
+      ],
+      "post": {
+        "operationId": "createSlot",
+        "tags": [
+          "Planning"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSlotRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created slot",
+            "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Slot"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/trips/{tripId}/slots/order": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        }
+      ],
+      "put": {
+        "operationId": "reorderSlots",
+        "tags": [
+          "Planning"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderSlotsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Complete ordered slots after an atomic reorder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Slot"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/trips/{tripId}/slots/{slotId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        },
+        {
+          "$ref": "#/components/parameters/SlotId"
+        }
+      ],
+      "get": {
+        "operationId": "getSlot",
+        "tags": [
+          "Planning"
+        ],
+        "responses": {
+          "200": {
+            "description": "Slot with candidate comparison and viewer-safe votes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlotDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateSlot",
+        "tags": [
+          "Planning"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSlotRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated slot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Slot"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSlot",
+        "tags": [
+          "Planning"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Version"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Slot deleted"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/api/trips/{tripId}/slots/{slotId}/candidates": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        },
+        {
+          "$ref": "#/components/parameters/SlotId"
+        }
+      ],
+      "post": {
+        "operationId": "createCandidate",
+        "tags": [
+          "Planning"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCandidateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Candidate persisted without waiting for URL metadata",
+            "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Candidate"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/trips/{tripId}/candidates/{candidateId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        },
+        {
+          "$ref": "#/components/parameters/CandidateId"
+        }
+      ],
+      "patch": {
+        "operationId": "updateCandidate",
+        "tags": [
+          "Planning"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCandidateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated candidate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Candidate"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/trips/{tripId}/candidates/{candidateId}/vote": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        },
+        {
+          "$ref": "#/components/parameters/CandidateId"
+        }
+      ],
+      "put": {
+        "operationId": "putMyCandidateVote",
+        "tags": [
+          "Planning"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutVoteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Current viewer vote and aggregate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoteView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/trips/{tripId}/slots/{slotId}/adoption": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        },
+        {
+          "$ref": "#/components/parameters/SlotId"
+        }
+      ],
+      "put": {
+        "operationId": "adoptCandidate",
+        "tags": [
+          "Planning"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdoptCandidateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Slot and plan item updated atomically",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdoptionResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "clearAdoption",
+        "tags": [
+          "Planning"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Version"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Adoption cleared when no confirmed expense blocks it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Slot"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/api/trips/{tripId}/slots/{slotId}/split": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        },
+        {
+          "$ref": "#/components/parameters/SlotId"
+        }
+      ],
+      "post": {
+        "operationId": "splitSlot",
+        "tags": [
+          "Planning"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SplitSlotRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resulting slots after an atomic split",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "items": {
+                    "$ref": "#/components/schemas/Slot"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/trips/{tripId}/expenses": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        }
+      ],
+      "get": {
+        "operationId": "listExpenses",
+        "tags": [
+          "Expenses"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Cursor"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ExpenseStatus"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cursor-paged expenses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpensePage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createExpenseDraft",
+        "tags": [
+          "Expenses"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExpenseDraftRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Expense DRAFT created",
+            "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Expense"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/trips/{tripId}/expenses/{expenseId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        },
+        {
+          "$ref": "#/components/parameters/ExpenseId"
+        }
+      ],
+      "get": {
+        "operationId": "getExpense",
+        "tags": [
+          "Expenses"
+        ],
+        "responses": {
+          "200": {
+            "description": "Expense detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Expense"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateExpense",
+        "tags": [
+          "Expenses"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateExpenseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated or confirmed expense",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Expense"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteExpenseDraft",
+        "tags": [
+          "Expenses"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Version"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "DRAFT deleted; CONFIRMED expenses require an audited correction"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/api/trips/{tripId}/expenses/{expenseId}/receipt-upload": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        },
+        {
+          "$ref": "#/components/parameters/ExpenseId"
+        }
+      ],
+      "post": {
+        "operationId": "prepareExpenseReceiptUpload",
+        "tags": [
+          "Expenses"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareReceiptUploadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Short-lived upload capability. The URL must never be logged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptUpload"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/trips/{tripId}/expenses/{expenseId}/receipts/{receiptId}/completion": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        },
+        {
+          "$ref": "#/components/parameters/ExpenseId"
+        },
+        {
+          "$ref": "#/components/parameters/ReceiptId"
+        }
+      ],
+      "post": {
+        "operationId": "completeExpenseReceiptUpload",
+        "tags": [
+          "Expenses"
+        ],
+        "description": "Verifies the stored object's size and content type before marking the receipt UPLOADED.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Expense with verified uploaded receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Expense"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/trips/{tripId}/settlements": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        }
+      ],
+      "get": {
+        "operationId": "listSettlements",
+        "tags": [
+          "Settlements"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Cursor"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current and historical settlements",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettlementPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createSettlementDraft",
+        "tags": [
+          "Settlements"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSettlementRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Settlement draft with immutable calculation snapshot",
+            "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settlement"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/trips/{tripId}/settlements/{settlementId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        },
+        {
+          "$ref": "#/components/parameters/SettlementId"
+        }
+      ],
+      "get": {
+        "operationId": "getSettlement",
+        "tags": [
+          "Settlements"
+        ],
+        "responses": {
+          "200": {
+            "description": "Settlement and unapplied-change indicator",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settlement"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/trips/{tripId}/settlements/{settlementId}/confirmation": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        },
+        {
+          "$ref": "#/components/parameters/SettlementId"
+        }
+      ],
+      "post": {
+        "operationId": "confirmSettlement",
+        "tags": [
+          "Settlements"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Confirmed settlement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settlement"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/api/trips/{tripId}/settlements/{settlementId}/transfers/{transferId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        },
+        {
+          "$ref": "#/components/parameters/SettlementId"
+        },
+        {
+          "$ref": "#/components/parameters/TransferId"
+        }
+      ],
+      "patch": {
+        "operationId": "updateSettlementTransfer",
+        "tags": [
+          "Settlements"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTransferRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated transfer and settlement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settlement"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/internal/tasks/candidates/{candidateId}/metadata": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/CandidateId"
+        }
+      ],
+      "post": {
+        "operationId": "processCandidateMetadataTask",
+        "tags": [
+          "Planning"
+        ],
+        "security": [
+          {
+            "tasksServiceOidc": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InternalTaskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Processed or already processed idempotently"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/internal/outbox/dispatch": {
+      "post": {
+        "operationId": "dispatchPendingOutbox",
+        "tags": [
+          "Trips"
+        ],
+        "security": [
+          {
+            "schedulerServiceOidc": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutboxDispatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Dispatch attempt summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboxDispatchResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "firebaseBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Firebase ID token",
+        "description": "Signature-verified Firebase ID token. Travel roles are loaded from trip_member, never trusted from client claims."
+      },
+      "tasksServiceOidc": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Google service-account OIDC token",
+        "description": "Only the configured Cloud Tasks service account and exact environment audience are accepted."
+      },
+      "schedulerServiceOidc": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Google service-account OIDC token",
+        "description": "Only the configured Cloud Scheduler service account and exact environment audience are accepted."
+      }
+    },
+    "parameters": {
+      "TripId": {
+        "name": "tripId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Id"
+        }
+      },
+      "SlotId": {
+        "name": "slotId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Id"
+        }
+      },
+      "CandidateId": {
+        "name": "candidateId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Id"
+        }
+      },
+      "MemberId": {
+        "name": "memberId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Id"
+        }
+      },
+      "ExpenseId": {
+        "name": "expenseId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Id"
+        }
+      },
+      "SettlementId": {
+        "name": "settlementId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Id"
+        }
+      },
+      "TransferId": {
+        "name": "transferId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Id"
+        }
+      },
+      "ReceiptId": {
+        "name": "receiptId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "Cursor": {
+        "name": "cursor",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "description": "Opaque server-issued cursor"
+      },
+      "PageSize": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "description": "Reused for retries of the same logical operation. A reused key with a different request hash returns 409."
+      },
+      "Version": {
+        "name": "version",
+        "in": "query",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Version"
+        }
+      }
+    },
+    "headers": {
+      "Location": {
+        "description": "Canonical URL of the created resource",
+        "schema": {
+          "type": "string",
+          "format": "uri-reference"
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Malformed request or idempotency header",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Missing or invalid Firebase identity",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Authenticated trip member lacks the required role",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Trip membership or nested resource ownership was not found; this response does not disclose another trip's resource",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Optimistic-lock, idempotency, or domain-state conflict",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ConflictProblem"
+            }
+          }
+        }
+      },
+      "ValidationFailed": {
+        "description": "Syntactically valid request that violates field or business validation",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "Rate limit exceeded without disclosing token validity",
+        "headers": {
+          "Retry-After": {
+            "description": "Seconds until the caller may retry",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Id": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "Version": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "Yen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "description": "Integer Japanese yen"
+      },
+      "PositiveYen": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1,
+        "description": "Positive integer Japanese yen"
+      },
+      "Role": {
+        "type": "string",
+        "enum": [
+          "OWNER",
+          "ORGANIZER",
+          "MEMBER"
+        ]
+      },
+      "MemberStatus": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "LEFT",
+          "REMOVED"
+        ]
+      },
+      "TripPhase": {
+        "type": "string",
+        "enum": [
+          "PLANNING",
+          "TRAVELING",
+          "SETTLING"
+        ]
+      },
+      "VoteVisibility": {
+        "type": "string",
+        "enum": [
+          "NAMED",
+          "ANONYMOUS"
+        ]
+      },
+      "Member": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "role",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MemberStatus"
+          }
+        }
+      },
+      "Trip": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "destination",
+          "startsOn",
+          "endsOn",
+          "timezone",
+          "expectedMemberCount",
+          "phase",
+          "voteVisibility",
+          "revision",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "destination": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "startsOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "endsOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "timezone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "description": "Validated IANA timezone"
+          },
+          "expectedMemberCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "phase": {
+            "$ref": "#/components/schemas/TripPhase"
+          },
+          "phaseOverride": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TripPhase"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "voteVisibility": {
+            "$ref": "#/components/schemas/VoteVisibility"
+          },
+          "budgetCap": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Yen"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision": {
+            "$ref": "#/components/schemas/Version"
+          },
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          }
+        }
+      },
+      "CreateTripRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "destination",
+          "startsOn",
+          "endsOn",
+          "timezone",
+          "expectedMemberCount",
+          "ownerName"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "destination": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "startsOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "endsOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "timezone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "expectedMemberCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "ownerName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "budgetCap": {
+            "$ref": "#/components/schemas/Yen"
+          },
+          "voteVisibility": {
+            "$ref": "#/components/schemas/VoteVisibility"
+          }
+        }
+      },
+      "UpdateTripRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version"
+        ],
+        "minProperties": 2,
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "destination": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "startsOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "endsOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "timezone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "expectedMemberCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "phaseOverride": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TripPhase"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "voteVisibility": {
+            "$ref": "#/components/schemas/VoteVisibility"
+          },
+          "budgetCap": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Yen"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "TripPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/Trip"
+            }
+          },
+          "nextCursor": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "TripSnapshot": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "trip",
+          "members",
+          "slots"
+        ],
+        "properties": {
+          "trip": {
+            "$ref": "#/components/schemas/Trip"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Member"
+            }
+          },
+          "slots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Slot"
+            }
+          }
+        }
+      },
+      "InvitationLink": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "url",
+          "expiresAt"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "x-sensitive": true
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RecoveryLink": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "url",
+          "expiresAt"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "x-sensitive": true
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AcceptInvitationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "token",
+          "name"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 22,
+            "maxLength": 500,
+            "writeOnly": true
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        }
+      },
+      "AcceptRecoveryRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 22,
+            "maxLength": 500,
+            "writeOnly": true
+          }
+        }
+      },
+      "SlotCategory": {
+        "type": "string",
+        "enum": [
+          "LODGING",
+          "TRANSPORT",
+          "ACTIVITY",
+          "MEAL",
+          "OTHER"
+        ]
+      },
+      "SlotStatus": {
+        "type": "string",
+        "enum": [
+          "OPEN",
+          "TENTATIVE",
+          "DECIDED",
+          "SKIPPED"
+        ]
+      },
+      "Slot": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "category",
+          "title",
+          "dayFrom",
+          "dayTo",
+          "units",
+          "sortOrder",
+          "status",
+          "autoGenerated",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "category": {
+            "$ref": "#/components/schemas/SlotCategory"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "dayFrom": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "dayTo": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "units": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "status": {
+            "$ref": "#/components/schemas/SlotStatus"
+          },
+          "deadline": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "estPerPerson": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Yen"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "adoptedCandidateId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Id"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "autoGenerated": {
+            "type": "boolean"
+          },
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          }
+        }
+      },
+      "CreateSlotRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "category",
+          "title",
+          "dayFrom",
+          "dayTo",
+          "units",
+          "sortOrder"
+        ],
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/SlotCategory"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "dayFrom": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "dayTo": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "units": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date"
+          },
+          "estPerPerson": {
+            "$ref": "#/components/schemas/Yen"
+          }
+        }
+      },
+      "UpdateSlotRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version"
+        ],
+        "minProperties": 2,
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "dayFrom": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "dayTo": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "units": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "deadline": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "estPerPerson": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Yen"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "TENTATIVE",
+              "SKIPPED"
+            ]
+          }
+        }
+      },
+      "ReorderSlotsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tripVersion",
+          "items"
+        ],
+        "properties": {
+          "tripVersion": {
+            "$ref": "#/components/schemas/Version"
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "slotId",
+                "version",
+                "sortOrder"
+              ],
+              "properties": {
+                "slotId": {
+                  "$ref": "#/components/schemas/Id"
+                },
+                "version": {
+                  "$ref": "#/components/schemas/Version"
+                },
+                "sortOrder": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      },
+      "SplitSlotRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "splitAfterDay"
+        ],
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          },
+          "splitAfterDay": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "secondTitle": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        }
+      },
+      "EstimateBasis": {
+        "type": "string",
+        "enum": [
+          "PER_PERSON",
+          "TOTAL"
+        ]
+      },
+      "MetadataStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "PROCESSING",
+          "COMPLETED",
+          "FAILED_RETRYABLE",
+          "FAILED_PERMANENT"
+        ]
+      },
+      "Candidate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "slotId",
+          "createdByMemberId",
+          "tags",
+          "status",
+          "metadataStatus",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "slotId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "createdByMemberId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "title": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "url": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "imageUrl": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "estAmount": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Yen"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "estBasis": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EstimateBasis"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "REJECTED"
+            ]
+          },
+          "metadataStatus": {
+            "$ref": "#/components/schemas/MetadataStatus"
+          },
+          "metadataErrorCode": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          }
+        }
+      },
+      "CreateCandidateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "required": [
+              "title"
+            ]
+          },
+          {
+            "required": [
+              "url"
+            ]
+          }
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https?://",
+            "maxLength": 2048
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "estAmount": {
+            "$ref": "#/components/schemas/Yen"
+          },
+          "estBasis": {
+            "$ref": "#/components/schemas/EstimateBasis"
+          }
+        }
+      },
+      "UpdateCandidateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version"
+        ],
+        "minProperties": 2,
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          },
+          "title": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "url": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "estAmount": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Yen"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "estBasis": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EstimateBasis"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "REJECTED"
+            ]
+          }
+        }
+      },
+      "VoteChoice": {
+        "type": "string",
+        "enum": [
+          "YES",
+          "ANY",
+          "NO"
+        ]
+      },
+      "PutVoteRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "choice"
+        ],
+        "properties": {
+          "choice": {
+            "$ref": "#/components/schemas/VoteChoice"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          }
+        },
+        "if": {
+          "properties": {
+            "choice": {
+              "const": "NO"
+            }
+          },
+          "required": [
+            "choice"
+          ]
+        },
+        "then": {
+          "required": [
+            "reason"
+          ]
+        }
+      },
+      "Vote": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "choice",
+          "version"
+        ],
+        "properties": {
+          "memberId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "choice": {
+            "$ref": "#/components/schemas/VoteChoice"
+          },
+          "reason": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          }
+        }
+      },
+      "VoteView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "visibility",
+          "yesCount",
+          "anyCount",
+          "noCount"
+        ],
+        "properties": {
+          "visibility": {
+            "$ref": "#/components/schemas/VoteVisibility"
+          },
+          "yesCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "anyCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "noCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "myVote": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Vote"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "namedVotes": {
+            "description": "Present only when visibility is NAMED. Never present for ANONYMOUS, including for OWNER and ORGANIZER.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Vote"
+            }
+          }
+        }
+      },
+      "SlotDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "slot",
+          "candidates",
+          "votesByCandidate"
+        ],
+        "properties": {
+          "slot": {
+            "$ref": "#/components/schemas/Slot"
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            }
+          },
+          "votesByCandidate": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/VoteView"
+            }
+          }
+        }
+      },
+      "AdoptCandidateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "candidateId",
+          "version"
+        ],
+        "properties": {
+          "candidateId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          }
+        }
+      },
+      "PlanItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "slotId",
+          "fromCandidateId",
+          "title",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "slotId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "fromCandidateId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "startsAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timezone": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "placeRef": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          }
+        }
+      },
+      "AdoptionResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "slot",
+          "planItem"
+        ],
+        "properties": {
+          "slot": {
+            "$ref": "#/components/schemas/Slot"
+          },
+          "planItem": {
+            "$ref": "#/components/schemas/PlanItem"
+          }
+        }
+      },
+      "ExpenseStatus": {
+        "type": "string",
+        "enum": [
+          "DRAFT",
+          "CONFIRMED"
+        ]
+      },
+      "AllocationType": {
+        "type": "string",
+        "enum": [
+          "EQUAL",
+          "WEIGHT",
+          "FIXED_AND_WEIGHT"
+        ]
+      },
+      "ExpenseShareInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "memberId"
+        ],
+        "properties": {
+          "memberId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "weight": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1000000
+          },
+          "fixedAmount": {
+            "$ref": "#/components/schemas/Yen"
+          }
+        }
+      },
+      "ExpenseShare": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "memberId"
+        ],
+        "properties": {
+          "memberId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "weight": {
+            "oneOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fixedAmount": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Yen"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finalAmount": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Yen"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Persisted deterministic burden; non-null for CONFIRMED expenses"
+          }
+        }
+      },
+      "Receipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "contentType",
+          "byteSize",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp"
+            ]
+          },
+          "byteSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10485760
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "UPLOADED",
+              "FAILED"
+            ]
+          }
+        }
+      },
+      "Expense": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "createdByMemberId",
+          "source",
+          "status",
+          "receipts",
+          "shares",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "planItemId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Id"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdByMemberId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "payerId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Id"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PositiveYen"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currency": {
+            "oneOf": [
+              {
+                "type": "string",
+                "const": "JPY"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "baseAmount": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PositiveYen"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paidAt": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "PLAN",
+              "MANUAL"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/ExpenseStatus"
+          },
+          "allocationType": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AllocationType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "receipts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Receipt"
+            }
+          },
+          "shares": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExpenseShare"
+            }
+          },
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          }
+        }
+      },
+      "CreateExpenseDraftRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "required": [
+              "amount"
+            ]
+          },
+          {
+            "properties": {
+              "hasReceipt": {
+                "const": true
+              }
+            },
+            "required": [
+              "hasReceipt"
+            ]
+          }
+        ],
+        "properties": {
+          "planItemId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/PositiveYen"
+          },
+          "paidAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "PLAN",
+              "MANUAL"
+            ],
+            "default": "MANUAL"
+          },
+          "hasReceipt": {
+            "type": "boolean",
+            "description": "Must be true when creating a photo-only DRAFT; an upload is prepared after creation"
+          }
+        }
+      },
+      "UpdateExpenseRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version"
+        ],
+        "minProperties": 2,
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          },
+          "payerId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/PositiveYen"
+          },
+          "paidAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "allocationType": {
+            "$ref": "#/components/schemas/AllocationType"
+          },
+          "shares": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/ExpenseShareInput"
+            }
+          },
+          "status": {
+            "type": "string",
+            "const": "CONFIRMED"
+          }
+        }
+      },
+      "ExpensePage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/Expense"
+            }
+          },
+          "nextCursor": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "PrepareReceiptUploadRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "contentType",
+          "byteSize",
+          "version"
+        ],
+        "properties": {
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp"
+            ]
+          },
+          "byteSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10485760
+          },
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          }
+        }
+      },
+      "ReceiptUpload": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "receiptId",
+          "uploadUrl",
+          "expiresAt",
+          "requiredHeaders"
+        ],
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "uploadUrl": {
+            "type": "string",
+            "format": "uri",
+            "x-sensitive": true
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requiredHeaders": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "SettlementStatus": {
+        "type": "string",
+        "enum": [
+          "DRAFT",
+          "CONFIRMED",
+          "COMPLETED",
+          "SUPERSEDED"
+        ]
+      },
+      "TransferStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "PAID",
+          "CONFIRMED"
+        ]
+      },
+      "SettlementTransfer": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "fromMemberId",
+          "toMemberId",
+          "amount",
+          "status",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "fromMemberId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "toMemberId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/PositiveYen"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TransferStatus"
+          },
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          }
+        }
+      },
+      "Settlement": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status",
+          "calculatedAt",
+          "expenseVersions",
+          "transfers",
+          "hasUnappliedChanges",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SettlementStatus"
+          },
+          "calculatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expenseVersions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "expenseId",
+                "version"
+              ],
+              "properties": {
+                "expenseId": {
+                  "$ref": "#/components/schemas/Id"
+                },
+                "version": {
+                  "$ref": "#/components/schemas/Version"
+                }
+              }
+            }
+          },
+          "transfers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SettlementTransfer"
+            }
+          },
+          "hasUnappliedChanges": {
+            "type": "boolean"
+          },
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          }
+        }
+      },
+      "CreateSettlementRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedTripRevision": {
+            "$ref": "#/components/schemas/Version"
+          }
+        }
+      },
+      "SettlementPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/Settlement"
+            }
+          },
+          "nextCursor": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "VersionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version"
+        ],
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          }
+        }
+      },
+      "UpdateTransferRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "version"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "PAID",
+              "CONFIRMED"
+            ]
+          },
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          }
+        }
+      },
+      "InternalTaskRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "OutboxDispatchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          }
+        }
+      },
+      "OutboxDispatchResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "selected",
+          "published",
+          "failed"
+        ],
+        "properties": {
+          "selected": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "published": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "TripEventType": {
+        "type": "string",
+        "enum": [
+          "MEMBER_JOINED",
+          "MEMBER_ROLE_CHANGED",
+          "CANDIDATE_CREATED",
+          "CANDIDATE_UPDATED",
+          "CANDIDATE_METADATA_REQUESTED",
+          "CANDIDATE_METADATA_COMPLETED",
+          "CANDIDATE_METADATA_FAILED",
+          "CANDIDATE_VOTE_CHANGED",
+          "SLOT_ADOPTION_CHANGED",
+          "EXPENSE_DRAFT_CREATED",
+          "EXPENSE_CONFIRMED",
+          "EXPENSE_UPDATED",
+          "SETTLEMENT_CONFIRMED",
+          "SETTLEMENT_TRANSFER_UPDATED"
+        ]
+      },
+      "TripEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "tripId",
+          "tripRevision",
+          "type",
+          "resourceType",
+          "resourceId",
+          "occurredAt"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tripId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "tripRevision": {
+            "$ref": "#/components/schemas/Version"
+          },
+          "type": {
+            "$ref": "#/components/schemas/TripEventType"
+          },
+          "resourceType": {
+            "type": "string",
+            "enum": [
+              "member",
+              "candidate",
+              "slot",
+              "expense",
+              "settlement",
+              "settlementTransfer"
+            ]
+          },
+          "resourceId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "resourceVersion": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Version"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "field",
+          "message"
+        ],
+        "properties": {
+          "field": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code",
+          "message",
+          "traceId"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri-reference"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 400,
+            "maximum": 599
+          },
+          "detail": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "instance": {
+            "type": "string",
+            "format": "uri-reference"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z0-9_]+$",
+            "maxLength": 80
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "fieldErrors": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "traceId": {
+            "type": "string",
+            "maxLength": 64
+          }
+        }
+      },
+      "ConflictProblem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Problem"
+          },
+          {
+            "type": "object",
+            "required": [
+              "currentVersion"
+            ],
+            "properties": {
+              "currentVersion": {
+                "$ref": "#/components/schemas/Version"
+              },
+              "current": {
+                "type": "object",
+                "description": "Current safe response representation of the conflicted resource",
+                "additionalProperties": true
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

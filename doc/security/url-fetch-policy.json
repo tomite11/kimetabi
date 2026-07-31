@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "allowedSchemes": [
+    "http",
+    "https"
+  ],
+  "allowedPorts": [
+    80,
+    443
+  ],
+  "connectTimeoutMs": 3000,
+  "totalTimeoutMs": 5000,
+  "maxBodyBytes": 2097152,
+  "maxRedirects": 5,
+  "rejectUserInfo": true,
+  "requireAllResolvedAddressesPublic": true,
+  "pinValidatedAddressForConnection": true,
+  "blockedHostnames": [
+    "localhost",
+    "metadata.google.internal"
+  ]
+}

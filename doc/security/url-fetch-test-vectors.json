@@ -1,0 +1,321 @@
+{
+  "urlCases": [
+    {
+      "name": "public_https_default_port",
+      "url": "https://example.test/path",
+      "resolvedAddresses": [
+        "93.184.216.34"
+      ],
+      "allowed": true
+    },
+    {
+      "name": "public_ipv6",
+      "url": "https://[2606:4700:4700::1111]/",
+      "resolvedAddresses": [
+        "2606:4700:4700::1111"
+      ],
+      "allowed": true
+    },
+    {
+      "name": "private_ipv4",
+      "url": "http://10.0.0.1/",
+      "resolvedAddresses": [
+        "10.0.0.1"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "private_ipv4_172",
+      "url": "http://172.16.0.1/",
+      "resolvedAddresses": [
+        "172.16.0.1"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "private_ipv4_192",
+      "url": "http://192.168.0.1/",
+      "resolvedAddresses": [
+        "192.168.0.1"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "loopback_ipv4",
+      "url": "http://127.0.0.1/",
+      "resolvedAddresses": [
+        "127.0.0.1"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "metadata_ipv4",
+      "url": "http://169.254.169.254/",
+      "resolvedAddresses": [
+        "169.254.169.254"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "carrier_grade_nat",
+      "url": "http://100.64.0.1/",
+      "resolvedAddresses": [
+        "100.64.0.1"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "ipv4_unspecified",
+      "url": "http://0.0.0.0/",
+      "resolvedAddresses": [
+        "0.0.0.0"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "ipv4_multicast",
+      "url": "http://224.0.0.1/",
+      "resolvedAddresses": [
+        "224.0.0.1"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "ipv6_loopback",
+      "url": "http://[::1]/",
+      "resolvedAddresses": [
+        "::1"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "ipv6_unique_local",
+      "url": "http://[fd00::1]/",
+      "resolvedAddresses": [
+        "fd00::1"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "ipv6_link_local",
+      "url": "http://[fe80::1]/",
+      "resolvedAddresses": [
+        "fe80::1"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "ipv6_unspecified",
+      "url": "http://[::]/",
+      "resolvedAddresses": [
+        "::"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "ipv6_multicast",
+      "url": "http://[ff02::1]/",
+      "resolvedAddresses": [
+        "ff02::1"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "ipv4_mapped_ipv6_loopback",
+      "url": "http://[::ffff:127.0.0.1]/",
+      "resolvedAddresses": [
+        "::ffff:127.0.0.1"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "mixed_dns_answers",
+      "url": "https://mixed.example.test/",
+      "resolvedAddresses": [
+        "93.184.216.34",
+        "192.168.1.5"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "empty_dns_answers",
+      "url": "https://missing.example.test/",
+      "resolvedAddresses": [],
+      "allowed": false
+    },
+    {
+      "name": "blocked_metadata_hostname",
+      "url": "http://metadata.google.internal/",
+      "resolvedAddresses": [
+        "93.184.216.34"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "userinfo_rejected",
+      "url": "https://user@example.test/",
+      "resolvedAddresses": [
+        "93.184.216.34"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "integer_ipv4_rejected",
+      "url": "http://2130706433/",
+      "resolvedAddresses": [
+        "127.0.0.1"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "hex_ipv4_rejected",
+      "url": "http://0x7f000001/",
+      "resolvedAddresses": [
+        "127.0.0.1"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "octal_ipv4_rejected",
+      "url": "http://0177.0.0.1/",
+      "resolvedAddresses": [
+        "127.0.0.1"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "disallowed_port",
+      "url": "https://example.test:8080/",
+      "resolvedAddresses": [
+        "93.184.216.34"
+      ],
+      "allowed": false
+    },
+    {
+      "name": "ftp_rejected",
+      "url": "ftp://example.test/file",
+      "resolvedAddresses": [
+        "93.184.216.34"
+      ],
+      "allowed": false
+    }
+  ],
+  "redirectCases": [
+    {
+      "name": "public_redirect_chain",
+      "hops": [
+        {
+          "url": "https://short.example.test/a",
+          "resolvedAddresses": [
+            "93.184.216.34"
+          ]
+        },
+        {
+          "url": "https://destination.example.test/b",
+          "resolvedAddresses": [
+            "142.250.196.132"
+          ]
+        }
+      ],
+      "allowed": true
+    },
+    {
+      "name": "redirect_to_private",
+      "hops": [
+        {
+          "url": "https://public.example.test/",
+          "resolvedAddresses": [
+            "93.184.216.34"
+          ]
+        },
+        {
+          "url": "http://192.168.0.10/admin",
+          "resolvedAddresses": [
+            "192.168.0.10"
+          ]
+        }
+      ],
+      "allowed": false
+    },
+    {
+      "name": "six_redirects_rejected",
+      "redirectCount": 6,
+      "allowed": false
+    },
+    {
+      "name": "five_redirects_allowed",
+      "redirectCount": 5,
+      "allowed": true
+    }
+  ],
+  "connectionCases": [
+    {
+      "name": "pinned_address",
+      "validatedAddresses": [
+        "93.184.216.34"
+      ],
+      "connectedAddress": "93.184.216.34",
+      "allowed": true
+    },
+    {
+      "name": "dns_rebinding",
+      "validatedAddresses": [
+        "93.184.216.34"
+      ],
+      "connectedAddress": "127.0.0.1",
+      "allowed": false
+    }
+  ],
+  "limitCases": [
+    {
+      "name": "connect_at_limit",
+      "connectElapsedMs": 3000,
+      "totalElapsedMs": 3000,
+      "bodyBytes": 0,
+      "allowed": true
+    },
+    {
+      "name": "connect_timeout",
+      "connectElapsedMs": 3001,
+      "totalElapsedMs": 3001,
+      "bodyBytes": 0,
+      "allowed": false
+    },
+    {
+      "name": "total_at_limit",
+      "connectElapsedMs": 1000,
+      "totalElapsedMs": 5000,
+      "bodyBytes": 1,
+      "allowed": true
+    },
+    {
+      "name": "total_timeout_across_redirects",
+      "connectElapsedMs": 1000,
+      "totalElapsedMs": 5001,
+      "bodyBytes": 1,
+      "allowed": false
+    },
+    {
+      "name": "body_at_limit",
+      "connectElapsedMs": 1000,
+      "totalElapsedMs": 2000,
+      "bodyBytes": 2097152,
+      "allowed": true
+    },
+    {
+      "name": "content_length_over_limit",
+      "connectElapsedMs": 1000,
+      "totalElapsedMs": 2000,
+      "contentLength": 2097153,
+      "bodyBytes": 0,
+      "allowed": false
+    },
+    {
+      "name": "streamed_body_over_limit",
+      "connectElapsedMs": 1000,
+      "totalElapsedMs": 2000,
+      "bodyBytes": 2097153,
+      "allowed": false
+    }
+  ]
+}
