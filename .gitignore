@@ -1,0 +1,9 @@
+.DS_Store
+
+# Java / Maven
+.m2/
+backend/target/
+
+# Python contract-test cache
+__pycache__/
+*.py[cod]
