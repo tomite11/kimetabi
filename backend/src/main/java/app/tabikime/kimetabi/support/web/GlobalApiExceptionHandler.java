@@ -27,6 +27,8 @@ import app.tabikime.kimetabi.trip.TripNotFoundException;
 import app.tabikime.kimetabi.trip.TripForbiddenException;
 import app.tabikime.kimetabi.trip.TripValidationException;
 import app.tabikime.kimetabi.trip.TripVersionConflictException;
+import app.tabikime.kimetabi.candidate.CandidateVersionConflictException;
+import app.tabikime.kimetabi.candidate.SlotVersionConflictException;
 
 @RestControllerAdvice
 public class GlobalApiExceptionHandler {
@@ -268,6 +270,42 @@ public class GlobalApiExceptionHandler {
                 "競合が発生しました",
                 ApiErrorCode.VERSION_CONFLICT,
                 "旅行が別の操作で更新されています。",
+                request
+        );
+        problem.setProperty("currentVersion", exception.current().version());
+        problem.setProperty("current", exception.current());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(CandidateVersionConflictException.class)
+    ResponseEntity<ProblemDetail> handleCandidateVersionConflict(
+            CandidateVersionConflictException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = createProblem(
+                HttpStatus.CONFLICT,
+                CONFLICT_TYPE,
+                "競合が発生しました",
+                ApiErrorCode.VERSION_CONFLICT,
+                "候補が別の操作で更新されています。",
+                request
+        );
+        problem.setProperty("currentVersion", exception.current().version());
+        problem.setProperty("current", exception.current());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(SlotVersionConflictException.class)
+    ResponseEntity<ProblemDetail> handleSlotVersionConflict(
+            SlotVersionConflictException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = createProblem(
+                HttpStatus.CONFLICT,
+                CONFLICT_TYPE,
+                "競合が発生しました",
+                ApiErrorCode.VERSION_CONFLICT,
+                "枠が別の操作で更新されています。",
                 request
         );
         problem.setProperty("currentVersion", exception.current().version());

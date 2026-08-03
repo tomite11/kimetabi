@@ -85,6 +85,15 @@ public class TripAuthorizationService {
         return actor;
     }
 
+    public long requireSlotResourceMemberId(
+            String firebaseUid,
+            long tripId,
+            TripPermission permission,
+            long slotId
+    ) {
+        return requireSlotResource(firebaseUid, tripId, permission, slotId).id();
+    }
+
     private static EnumSet<TripPermission> union(
             EnumSet<TripPermission> base,
             TripPermission... additions
