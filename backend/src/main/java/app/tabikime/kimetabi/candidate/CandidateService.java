@@ -6,6 +6,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.HashSet;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,6 +75,71 @@ public class CandidateService {
         CreateSlotRequest resolvedRequest = withDefaultDeadline(tripId, request);
         long slotId = repository.insertSlot(tripId, resolvedRequest);
         return repository.findSlot(tripId, slotId).orElseThrow();
+    }
+
+    @Transactional
+    public List<app.tabikime.kimetabi.trip.SlotResource> reorderSlots(
+            String firebaseUid, long tripId, ReorderSlotsRequest request
+    ) {
+        authorization.require(firebaseUid, tripId, TripPermission.CHANGE_DEADLINE);
+        repository.lockTrip(tripId);
+        List<app.tabikime.kimetabi.trip.SlotResource> current = repository.listSlots(tripId);
+        if (request.items().size() != current.size()
+                || new HashSet<>(request.items().stream().map(ReorderSlotsRequest.Item::slotId)
+                        .toList()).size() != current.size()
+                || !new HashSet<>(request.items().stream().map(ReorderSlotsRequest.Item::sortOrder)
+                        .toList()).equals(java.util.stream.IntStream.range(0, current.size())
+                                .boxed().collect(Collectors.toSet()))) {
+            throw new TripValidationException("items", "全枠を重複なく連続した順序で指定してください。");
+        }
+        Map<Long, app.tabikime.kimetabi.trip.SlotResource> currentById = current.stream()
+                .collect(Collectors.toMap(app.tabikime.kimetabi.trip.SlotResource::id, slot -> slot));
+        for (ReorderSlotsRequest.Item item : request.items()) {
+            var slot = currentById.get(item.slotId());
+            if (slot == null) throw new TripNotFoundException();
+            if (slot.version() != item.version()) throw new SlotVersionConflictException(slot);
+        }
+        if (!repository.incrementTripVersion(tripId, request.tripVersion())) {
+            throw new SlotVersionConflictException(current.get(0));
+        }
+        repository.reorderSlots(tripId, request.items().stream().collect(Collectors.toMap(
+                ReorderSlotsRequest.Item::slotId, ReorderSlotsRequest.Item::sortOrder)));
+        return repository.listSlots(tripId);
+    }
+
+    @Transactional
+    public List<app.tabikime.kimetabi.trip.SlotResource> splitSlot(
+            String firebaseUid, long tripId, long slotId, SplitSlotRequest request
+    ) {
+        authorization.requireSlotResource(
+                firebaseUid, tripId, TripPermission.CHANGE_DEADLINE, slotId);
+        repository.lockTrip(tripId);
+        var slot = repository.lockSlot(tripId, slotId).orElseThrow(TripNotFoundException::new);
+        if (slot.version() != request.version()) throw new SlotVersionConflictException(slot);
+        if (slot.category() != app.tabikime.kimetabi.trip.SlotCategory.LODGING) {
+            throw new TripValidationException("slotId", "宿泊枠だけを分割できます。");
+        }
+        if (request.splitAfterDay() < slot.dayFrom() || request.splitAfterDay() >= slot.dayTo()) {
+            throw new TripValidationException("splitAfterDay", "枠の日付範囲内で分割位置を指定してください。");
+        }
+        if (request.secondTitle() != null && request.secondTitle().isBlank()) {
+            throw new TripValidationException("secondTitle", "後半の枠名は空白にできません。");
+        }
+        if (repository.slotHasCandidates(tripId, slotId) || slot.adoptedCandidateId() != null) {
+            throw new TripValidationException("slotId", "候補または採択予定がある枠は分割できません。");
+        }
+        int firstUnits = request.splitAfterDay() - slot.dayFrom() + 1;
+        int secondUnits = slot.dayTo() - request.splitAfterDay();
+        Long firstEstimate = slot.estPerPerson() == null ? null
+                : Math.floorDiv(Math.multiplyExact(slot.estPerPerson(), firstUnits), firstUnits + secondUnits);
+        Long secondEstimate = slot.estPerPerson() == null ? null : slot.estPerPerson() - firstEstimate;
+        if (!repository.shortenSplitSource(
+                tripId, slotId, request.version(), request.splitAfterDay(), firstEstimate)) {
+            throw new SlotVersionConflictException(repository.findSlot(tripId, slotId).orElseThrow());
+        }
+        long secondId = repository.insertSplitSlot(tripId, slot, request, secondEstimate);
+        return List.of(repository.findSlot(tripId, slotId).orElseThrow(),
+                repository.findSlot(tripId, secondId).orElseThrow());
     }
 
     @Transactional

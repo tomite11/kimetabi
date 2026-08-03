@@ -3,6 +3,7 @@ package app.tabikime.kimetabi.candidate;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -107,6 +108,95 @@ class CandidateRepository {
     void lockTrip(long tripId) {
         jdbcClient.sql("SELECT id FROM trip WHERE id = :tripId FOR UPDATE")
                 .param("tripId", tripId).query(Long.class).single();
+    }
+
+    boolean incrementTripVersion(long tripId, long version) {
+        return jdbcClient.sql("""
+                        UPDATE trip SET version = version + 1, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :tripId AND version = :version AND deleted_at IS NULL
+                        """)
+                .param("tripId", tripId).param("version", version).update() == 1;
+    }
+
+    List<SlotResource> listSlots(long tripId) {
+        return jdbcClient.sql("""
+                        SELECT id, category, title, day_from, day_to, units, sort_order,
+                               status, deadline, est_per_person, adopted_candidate_id,
+                               auto_generated, version
+                        FROM slot WHERE trip_id = :tripId ORDER BY sort_order, id
+                        """)
+                .param("tripId", tripId)
+                .query((resultSet, rowNumber) -> new SlotResource(
+                        resultSet.getLong("id"),
+                        SlotCategory.valueOf(resultSet.getString("category")),
+                        resultSet.getString("title"),
+                        resultSet.getInt("day_from"),
+                        resultSet.getInt("day_to"),
+                        resultSet.getInt("units"),
+                        resultSet.getInt("sort_order"),
+                        SlotStatus.valueOf(resultSet.getString("status")),
+                        resultSet.getObject("deadline", LocalDate.class),
+                        resultSet.getObject("est_per_person", Long.class),
+                        resultSet.getObject("adopted_candidate_id", Long.class),
+                        resultSet.getBoolean("auto_generated"),
+                        resultSet.getLong("version")))
+                .list();
+    }
+
+    void reorderSlots(long tripId, Map<Long, Integer> orders) {
+        orders.forEach((slotId, sortOrder) -> jdbcClient.sql("""
+                        UPDATE slot SET sort_order = :temporaryOrder
+                        WHERE trip_id = :tripId AND id = :slotId
+                        """)
+                .param("temporaryOrder", -sortOrder - 1)
+                .param("tripId", tripId).param("slotId", slotId).update());
+        orders.forEach((slotId, sortOrder) -> jdbcClient.sql("""
+                        UPDATE slot SET sort_order = :sortOrder, version = version + 1,
+                                        updated_at = CURRENT_TIMESTAMP
+                        WHERE trip_id = :tripId AND id = :slotId
+                        """)
+                .param("sortOrder", sortOrder).param("tripId", tripId)
+                .param("slotId", slotId).update());
+    }
+
+    long insertSplitSlot(
+            long tripId, SlotResource source, SplitSlotRequest request, Long secondEstimate) {
+        jdbcClient.sql("""
+                        UPDATE slot SET sort_order = sort_order + 1
+                        WHERE trip_id = :tripId AND sort_order > :sourceOrder
+                        """)
+                .param("tripId", tripId).param("sourceOrder", source.sortOrder()).update();
+        return jdbcClient.sql("""
+                        INSERT INTO slot (
+                            trip_id, category, title, day_from, day_to, units, sort_order,
+                            status, deadline, est_per_person, auto_generated
+                        ) VALUES (
+                            :tripId, :category, :title, :dayFrom, :dayTo, :units, :sortOrder,
+                            'OPEN', :deadline, :estPerPerson, FALSE
+                        ) RETURNING id
+                        """)
+                .param("tripId", tripId).param("category", source.category().name())
+                .param("title", request.secondTitle() == null
+                        ? source.title() + "（後半）" : request.secondTitle().trim())
+                .param("dayFrom", request.splitAfterDay() + 1).param("dayTo", source.dayTo())
+                .param("units", source.dayTo() - request.splitAfterDay())
+                .param("sortOrder", source.sortOrder() + 1).param("deadline", source.deadline())
+                .param("estPerPerson", secondEstimate).query(Long.class).single();
+    }
+
+    boolean shortenSplitSource(
+            long tripId, long slotId, long version, int splitAfterDay, Long firstEstimate) {
+        return jdbcClient.sql("""
+                        UPDATE slot SET day_to = :splitAfterDay,
+                                        units = :splitAfterDay - day_from + 1,
+                                        est_per_person = :firstEstimate,
+                                        auto_generated = FALSE, version = version + 1,
+                                        updated_at = CURRENT_TIMESTAMP
+                        WHERE trip_id = :tripId AND id = :slotId AND version = :version
+                        """)
+                .param("splitAfterDay", splitAfterDay).param("tripId", tripId)
+                .param("firstEstimate", firstEstimate)
+                .param("slotId", slotId).param("version", version).update() == 1;
     }
 
     boolean slotHasCandidates(long tripId, long slotId) {

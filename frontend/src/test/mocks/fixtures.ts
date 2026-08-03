@@ -6,6 +6,7 @@ export const emptyTripPage = {
 } satisfies components["schemas"]["TripPage"];
 
 export const tokyoTripSnapshot = {
+  currentMemberId: 7,
   trip: {
     id: 42,
     title: "東京の旅",
@@ -44,3 +45,59 @@ export const tokyoTripSnapshot = {
     },
   ],
 } satisfies components["schemas"]["TripSnapshot"];
+
+export const transportSlotDetail = {
+  slot: tokyoTripSnapshot.slots[0],
+  candidates: [
+    {
+      id: 501,
+      slotId: 101,
+      createdByMemberId: 7,
+      title: "朝の新幹線",
+      url: "https://example.com/train-a",
+      imageUrl: null,
+      note: "東京駅に10時着",
+      tags: ["早割"],
+      estAmount: 12_000,
+      estBasis: "PER_PERSON",
+      status: "OPEN",
+      metadataStatus: "COMPLETED",
+      metadataErrorCode: null,
+      version: 0,
+    },
+    {
+      id: 502,
+      slotId: 101,
+      createdByMemberId: 8,
+      title: "ゆっくり新幹線",
+      url: null,
+      imageUrl: null,
+      note: null,
+      tags: [],
+      estAmount: 30_000,
+      estBasis: "TOTAL",
+      status: "OPEN",
+      metadataStatus: "COMPLETED",
+      metadataErrorCode: null,
+      version: 0,
+    },
+  ],
+  votesByCandidate: {
+    "501": {
+      visibility: "ANONYMOUS",
+      yesCount: 1,
+      anyCount: 0,
+      noCount: 0,
+      unvotedMemberIds: [8, 9],
+      myVote: { memberId: 7, choice: "YES", reason: null, version: 0 },
+    },
+    "502": {
+      visibility: "ANONYMOUS",
+      yesCount: 0,
+      anyCount: 0,
+      noCount: 0,
+      unvotedMemberIds: [7, 8, 9],
+      myVote: null,
+    },
+  },
+} satisfies components["schemas"]["SlotDetail"];

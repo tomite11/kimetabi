@@ -98,8 +98,10 @@ public class TripService {
     public TripSnapshot snapshot(String firebaseUid, long tripId) {
         TripRepository.StoredTrip trip = repository.findActiveMemberTrip(tripId, firebaseUid)
                 .orElseThrow(TripNotFoundException::new);
+        long currentMemberId = authorization.requireMembership(firebaseUid, tripId).id();
         return new TripSnapshot(
                 toResource(trip),
+                currentMemberId,
                 repository.listMembers(tripId),
                 repository.listSlots(tripId));
     }
@@ -165,7 +167,7 @@ public class TripService {
                 tripId, actor.id(), MemberStatus.LEFT, expectedVersion)) {
             throw conflict(firebaseUid, tripId);
         }
-        return snapshotIncludingInactiveMember(tripId);
+        return snapshotIncludingInactiveMember(tripId, actor.id());
     }
 
     @Transactional
@@ -204,11 +206,12 @@ public class TripService {
         return new MemberLifecycleConflictException(snapshot(firebaseUid, tripId));
     }
 
-    private TripSnapshot snapshotIncludingInactiveMember(long tripId) {
+    private TripSnapshot snapshotIncludingInactiveMember(long tripId, long currentMemberId) {
         TripRepository.StoredTrip trip = repository.findTrip(tripId)
                 .orElseThrow(TripNotFoundException::new);
         return new TripSnapshot(
                 toResource(trip),
+                currentMemberId,
                 repository.listMembers(tripId),
                 repository.listSlots(tripId));
     }

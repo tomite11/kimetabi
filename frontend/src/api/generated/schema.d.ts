@@ -629,6 +629,7 @@ export interface components {
         };
         TripSnapshot: {
             trip: components["schemas"]["Trip"];
+            currentMemberId: components["schemas"]["Id"];
             members: components["schemas"]["Member"][];
             slots: components["schemas"]["Slot"][];
         };

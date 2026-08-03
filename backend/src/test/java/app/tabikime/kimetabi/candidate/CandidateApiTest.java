@@ -334,6 +334,57 @@ class CandidateApiTest {
     }
 
     @Test
+    void organizerReordersEverySlotAtomicallyAndRejectsMember() throws Exception {
+        addPlanningMembers();
+        jdbcClient.sql("""
+                        INSERT INTO slot (
+                            id, trip_id, category, title, day_from, day_to,
+                            units, sort_order, status
+                        ) VALUES (10, 1, 'MEAL', '夕食', 1, 1, 1, 1, 'OPEN')
+                        """).update();
+        String body = """
+                {"tripVersion":0,"items":[
+                  {"slotId":10,"version":0,"sortOrder":0},
+                  {"slotId":1,"version":0,"sortOrder":1}
+                ]}
+                """;
+
+        mockMvc.perform(put("/api/trips/1/slots/order")
+                        .contentType(MediaType.APPLICATION_JSON).content(body)
+                        .with(principal("member")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put("/api/trips/1/slots/order")
+                        .contentType(MediaType.APPLICATION_JSON).content(body)
+                        .with(principal("organizer")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(10))
+                .andExpect(jsonPath("$[1].id").value(1));
+    }
+
+    @Test
+    void organizerSplitsEmptyMultiDaySlotAndStaleVersionConflicts() throws Exception {
+        addPlanningMembers();
+        jdbcClient.sql("UPDATE slot SET est_per_person = 20001 WHERE trip_id = 1 AND id = 1")
+                .update();
+        mockMvc.perform(post("/api/trips/1/slots/1/split")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":9,\"splitAfterDay\":1}")
+                        .with(principal("organizer")))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(post("/api/trips/1/slots/1/split")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":0,\"splitAfterDay\":1,\"secondTitle\":\"2日目の宿\"}")
+                        .with(principal("organizer")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].dayTo").value(1))
+                .andExpect(jsonPath("$[0].estPerPerson").value(10000))
+                .andExpect(jsonPath("$[1].dayFrom").value(2))
+                .andExpect(jsonPath("$[1].estPerPerson").value(10001))
+                .andExpect(jsonPath("$[1].title").value("2日目の宿"));
+    }
+
+    @Test
     void activeMemberVotesAndStaleVoteReturnsCurrentValue() throws Exception {
         createCandidateDirectly();
 

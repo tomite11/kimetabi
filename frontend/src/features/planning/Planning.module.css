@@ -1,0 +1,296 @@
+.sectionLabel {
+  margin: 0 0 var(--space-2);
+  color: var(--color-coral-deep);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+.pageTitle {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: clamp(1.9rem, 6vw, 3rem);
+}
+.titleRow,
+.slotHead,
+.budgetRow {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.addPanel {
+  position: relative;
+}
+.addPanel summary,
+.slotActions button,
+.secondaryButton {
+  min-height: 2.75rem;
+  padding: 0.65rem 1rem;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+}
+.addPanel form {
+  position: absolute;
+  z-index: 5;
+  inset-block-start: calc(100% + 0.5rem);
+  inset-inline-end: 0;
+  display: grid;
+  gap: 0.75rem;
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 1rem;
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+  box-shadow: 0 1rem 2rem rgb(24 43 73 / 18%);
+}
+.addPanel label,
+.candidateForm label,
+.reasonField,
+.reasonField label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 800;
+}
+.addPanel input,
+.addPanel select,
+.candidateForm input,
+.candidateForm select,
+.reasonField textarea {
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  border: 1px solid var(--color-line);
+  border-radius: 0.65rem;
+}
+.addPanel form > button,
+.candidateForm button,
+.adoptButton {
+  min-height: 3rem;
+  color: white;
+  font: inherit;
+  font-weight: 900;
+  background: var(--color-coral);
+  border: 0;
+  border-radius: 999px;
+}
+.formColumns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+.planList {
+  display: grid;
+  gap: 1.25rem;
+  margin-block-start: 2rem;
+  padding: 0;
+  list-style: none;
+}
+.planList li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: white;
+  border-inline-start: 0.35rem solid var(--color-sky);
+  border-radius: 1rem;
+}
+.slotLink {
+  display: grid;
+  gap: 0.2rem;
+  color: inherit;
+  text-decoration: none;
+}
+.slotLink > span {
+  color: var(--color-coral-deep);
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+.slotLink small {
+  color: var(--color-ink-soft);
+}
+.slotActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 0.4rem;
+}
+.splitControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.4rem;
+}
+.splitControls label {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+.splitControls select {
+  min-height: 2.75rem;
+  padding-inline: 0.6rem;
+  font: inherit;
+  background: white;
+  border: 1px solid var(--color-line);
+  border-radius: 0.65rem;
+}
+.emptyState {
+  margin-block-start: 2rem;
+  padding: 2rem;
+  text-align: center;
+  background: white;
+  border: 1px dashed var(--color-sky);
+  border-radius: 1rem;
+}
+.emptyState p,
+.lead,
+.muted {
+  color: var(--color-ink-soft);
+  line-height: 1.65;
+}
+.error,
+[role="alert"] {
+  color: var(--color-coral-deep);
+  font-weight: 800;
+}
+.candidateList {
+  display: grid;
+  gap: 1rem;
+  margin-block: 1.5rem 9rem;
+}
+.candidateCard {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  overflow: hidden;
+  background: white;
+  border: 2px solid transparent;
+  border-radius: 1rem;
+  box-shadow: 0 0.4rem 1rem rgb(24 43 73 / 8%);
+}
+.candidateCard[data-selected="true"] {
+  border-color: var(--color-coral);
+}
+.candidateSelect {
+  width: 100%;
+  min-height: 7rem;
+  color: inherit;
+  text-align: start;
+  background: color-mix(in srgb, var(--color-sky), white 75%);
+  border: 0;
+}
+.candidateBody {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+.candidatePrice {
+  font-size: 1.4rem;
+  font-weight: 900;
+}
+.candidatePrice small {
+  color: var(--color-ink-soft);
+  font-size: 0.8rem;
+}
+.tags,
+.voteRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+.tags span {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.75rem;
+  background: var(--color-mist);
+  border-radius: 999px;
+}
+.voteRow button {
+  min-height: 2.75rem;
+  padding: 0.5rem 0.8rem;
+  font: inherit;
+  font-weight: 800;
+  background: white;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+}
+.voteRow button[aria-pressed="true"] {
+  color: white;
+  background: var(--color-ink);
+}
+.reasonField {
+  margin-block-start: 0.5rem;
+}
+.candidateForm {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: white;
+  border: 1px dashed var(--color-sky);
+  border-radius: 1rem;
+}
+.budgetBar {
+  position: fixed;
+  z-index: 4;
+  inset-inline: max(1rem, calc((100vw - 62rem) / 2 + 1rem));
+  inset-block-end: 8rem;
+  padding: 1rem;
+  background: rgb(255 255 255 / 96%);
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+  box-shadow: 0 0.7rem 2rem rgb(24 43 73 / 18%);
+}
+.budgetTrack {
+  height: 0.55rem;
+  margin-block: 0.6rem;
+  overflow: hidden;
+  background: var(--color-mist);
+  border-radius: 999px;
+}
+.budgetTrack span {
+  display: block;
+  height: 100%;
+  background: var(--color-leaf);
+}
+.budgetTrack[data-over="true"] span {
+  background: var(--color-coral);
+}
+.conflict {
+  padding: 1rem;
+  background: color-mix(in srgb, var(--color-sun), white 72%);
+  border-radius: 1rem;
+}
+@media (max-width: 40rem) {
+  .titleRow {
+    align-items: start;
+  }
+  .planList li {
+    grid-template-columns: 1fr;
+  }
+  .slotActions {
+    justify-content: start;
+  }
+  .candidateCard {
+    grid-template-columns: 1fr;
+  }
+  .formColumns {
+    grid-template-columns: 1fr;
+  }
+  .budgetBar {
+    inset-block-end: 9.75rem;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .candidateCard {
+    transition:
+      border-color 180ms ease,
+      transform 180ms ease;
+  }
+  .candidateCard[data-selected="true"] {
+    transform: translateY(-2px);
+  }
+}

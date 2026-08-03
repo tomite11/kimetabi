@@ -28,7 +28,7 @@ const phaseCopy: Record<
 };
 
 function actionTarget(tripId: number, phase: TripPhase) {
-  if (phase === "PLANNING") return `/t/${tripId}/plan/new`;
+  if (phase === "PLANNING") return `/t/${tripId}/plan`;
   if (phase === "TRAVELING") return `/t/${tripId}/expenses/new`;
   return `/t/${tripId}/settle`;
 }

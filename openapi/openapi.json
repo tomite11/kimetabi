@@ -2277,12 +2277,16 @@
         "additionalProperties": false,
         "required": [
           "trip",
+          "currentMemberId",
           "members",
           "slots"
         ],
         "properties": {
           "trip": {
             "$ref": "#/components/schemas/Trip"
+          },
+          "currentMemberId": {
+            "$ref": "#/components/schemas/Id"
           },
           "members": {
             "type": "array",

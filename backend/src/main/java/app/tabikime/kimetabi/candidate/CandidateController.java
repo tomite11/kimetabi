@@ -55,6 +55,15 @@ public class CandidateController {
                 .body(slot);
     }
 
+    @PutMapping("/slots/order")
+    java.util.List<SlotResource> reorderSlots(
+            @AuthenticationPrincipal AppPrincipal principal,
+            @PathVariable @Min(1) long tripId,
+            @Valid @RequestBody ReorderSlotsRequest request
+    ) {
+        return service.reorderSlots(principal.firebaseUid(), tripId, request);
+    }
+
     @PatchMapping("/slots/{slotId}")
     SlotResource updateSlot(
             @AuthenticationPrincipal AppPrincipal principal,
@@ -74,6 +83,16 @@ public class CandidateController {
     ) {
         service.deleteSlot(principal.firebaseUid(), tripId, slotId, version);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/slots/{slotId}/split")
+    java.util.List<SlotResource> splitSlot(
+            @AuthenticationPrincipal AppPrincipal principal,
+            @PathVariable @Min(1) long tripId,
+            @PathVariable @Min(1) long slotId,
+            @Valid @RequestBody SplitSlotRequest request
+    ) {
+        return service.splitSlot(principal.firebaseUid(), tripId, slotId, request);
     }
 
     @PostMapping("/slots/{slotId}/candidates")

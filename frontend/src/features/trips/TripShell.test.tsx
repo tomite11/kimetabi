@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { ExpensePage } from "./ExpensePage";
 import { PlanPage } from "./PlanPage";
+import { CandidateComparisonPage } from "../planning/CandidateComparisonPage";
 import { TripHomePage } from "./TripHomePage";
 import { TripShell } from "./TripShell";
 
@@ -18,6 +19,7 @@ function renderShell(path = "/t/42") {
         <Route path="/t/:tripId" element={<TripShell />}>
           <Route index element={<TripHomePage />} />
           <Route path="plan" element={<PlanPage />} />
+          <Route path="plan/:slotId" element={<CandidateComparisonPage />} />
           <Route path="expenses" element={<ExpensePage />} />
         </Route>
       </Routes>
@@ -51,6 +53,17 @@ describe("TripShell", () => {
     expect(await screen.findByRole("heading", { name: "旅程" })).toBeVisible();
     expect(plan).toHaveAttribute("aria-current", "page");
     expect(screen.getByText("往路の移動")).toBeVisible();
+  });
+
+  it("旅程の枠をキーボードで開いて候補比較へ進める", async () => {
+    const user = userEvent.setup();
+    renderShell("/t/42/plan");
+    const slot = await screen.findByRole("link", { name: /往路の移動/ });
+    slot.focus();
+    await user.keyboard("{Enter}");
+    expect(
+      await screen.findByRole("heading", { name: "往路の移動" }),
+    ).toBeVisible();
   });
 
   it("支出の空状態でもタブ位置と主アクションを維持する", async () => {

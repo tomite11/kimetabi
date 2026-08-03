@@ -1,6 +1,10 @@
 import { http, HttpResponse } from "msw";
 
-import { emptyTripPage, tokyoTripSnapshot } from "./fixtures";
+import {
+  emptyTripPage,
+  tokyoTripSnapshot,
+  transportSlotDetail,
+} from "./fixtures";
 
 export const handlers = [
   http.get("*/api/trips", () => HttpResponse.json(emptyTripPage)),
@@ -23,6 +27,59 @@ export const handlers = [
     );
   }),
   http.get("*/api/trips/42", () => HttpResponse.json(tokyoTripSnapshot)),
+  http.get("*/api/trips/42/slots/101", () =>
+    HttpResponse.json(transportSlotDetail),
+  ),
+  http.post("*/api/trips/42/slots/101/candidates", async ({ request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    return HttpResponse.json(
+      { ...transportSlotDetail.candidates[0], id: 503, ...body },
+      { status: 201 },
+    );
+  }),
+  http.put(
+    "*/api/trips/42/candidates/:candidateId/vote",
+    async ({ request }) => {
+      const body = (await request.json()) as {
+        choice: "YES" | "ANY" | "NO";
+        reason?: string;
+      };
+      return HttpResponse.json({
+        visibility: "ANONYMOUS",
+        yesCount: body.choice === "YES" ? 1 : 0,
+        anyCount: body.choice === "ANY" ? 1 : 0,
+        noCount: body.choice === "NO" ? 1 : 0,
+        unvotedMemberIds: [8, 9],
+        myVote: {
+          memberId: 7,
+          choice: body.choice,
+          reason: body.reason,
+          version: 0,
+        },
+      });
+    },
+  ),
+  http.put("*/api/trips/42/slots/101/adoption", async ({ request }) => {
+    const body = (await request.json()) as { candidateId: number };
+    return HttpResponse.json({
+      slot: {
+        ...transportSlotDetail.slot,
+        status: "DECIDED",
+        adoptedCandidateId: body.candidateId,
+        version: 2,
+      },
+      planItem: {
+        id: 301,
+        slotId: 101,
+        fromCandidateId: body.candidateId,
+        title: "確定予定",
+        startsAt: null,
+        timezone: "Asia/Tokyo",
+        placeRef: null,
+        version: 0,
+      },
+    });
+  }),
   http.post("*/api/invitations/accept", () =>
     HttpResponse.json(tokyoTripSnapshot, { status: 201 }),
   ),

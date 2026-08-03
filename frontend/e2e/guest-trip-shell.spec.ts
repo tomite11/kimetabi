@@ -44,6 +44,35 @@ test("匿名参加後もモバイルで3タブ、フォーカス、空状態を�
   await expect(page).toHaveURL(/\/t\/42\/plan$/);
   await expect(planTab).toHaveAttribute("aria-current", "page");
 
+  const slotLink = page.getByRole("link", { name: /往路の移動/ });
+  await expect(slotLink).toBeVisible();
+  await slotLink.focus();
+  await expect(slotLink).toBeFocused();
+  await slotLink.press("Enter");
+  await expect(page).toHaveURL(/\/t\/42\/plan\/101$/);
+  const comparisonHeading = page.getByRole("heading", { name: "往路の移動" });
+  await expect(comparisonHeading).toBeVisible();
+  await expect(comparisonHeading).toBeFocused();
+  await page.getByRole("button", { name: "ゆっくり新幹線を仮選択" }).click();
+  await expect(page.getByLabel("旅行予算")).toContainText("1人 ¥10,000");
+  await expect
+    .poll(() =>
+      page
+        .locator('[class*="candidateCard"]')
+        .last()
+        .evaluate(
+          (element) =>
+            Number.parseFloat(getComputedStyle(element).transitionDuration) *
+              1000 <=
+            0.01,
+        ),
+    )
+    .toBe(true);
+  await page.screenshot({
+    path: testInfo.outputPath("candidate-comparison-mobile.png"),
+    fullPage: true,
+  });
+
   await navigation.getByRole("link", { name: "支出" }).click();
   await expect(page.getByText("支出はまだありません")).toBeVisible();
   await expect

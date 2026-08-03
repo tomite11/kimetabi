@@ -4,6 +4,7 @@ import java.util.List;
 
 public record TripSnapshot(
         TripResource trip,
+        long currentMemberId,
         List<MemberResource> members,
         List<SlotResource> slots
 ) {
