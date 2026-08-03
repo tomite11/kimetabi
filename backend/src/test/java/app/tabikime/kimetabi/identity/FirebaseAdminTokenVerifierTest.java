@@ -18,6 +18,17 @@ class FirebaseAdminTokenVerifierTest {
             new FirebaseAdminTokenVerifier(firebaseAuth);
 
     @Test
+    void allowsCredentialFreeAuthEmulatorOnlyForDemoProjects() throws Exception {
+        assertThat(FirebaseAdminConfiguration.credentials(
+                "demo-kimetabi-e2e", "127.0.0.1:9099")).isNotNull();
+
+        assertThatThrownBy(() -> FirebaseAdminConfiguration.credentials(
+                "production-project", "127.0.0.1:9099"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("demo-");
+    }
+
+    @Test
     void returnsOnlyUidFromVerifiedToken() throws Exception {
         FirebaseToken firebaseToken = mock(FirebaseToken.class);
         when(firebaseToken.getUid()).thenReturn("firebase-user-1");

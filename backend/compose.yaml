@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: kimetabi
       POSTGRES_PASSWORD: kimetabi
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - kimetabi-postgres:/var/lib/postgresql/data
     healthcheck:

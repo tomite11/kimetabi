@@ -7,3 +7,6 @@ backend/target/
 # Python contract-test cache
 __pycache__/
 *.py[cod]
+
+# Firebase Emulator Suite
+firebase-debug.log*
