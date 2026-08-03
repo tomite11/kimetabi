@@ -170,6 +170,7 @@ CREATE TABLE candidate (
     metadata_error_code VARCHAR(50),
     metadata_attempts INTEGER NOT NULL DEFAULT 0,
     metadata_updated_at TIMESTAMPTZ,
+    metadata_request_event_id UUID,
     title_edited_at TIMESTAMPTZ,
     image_edited_at TIMESTAMPTZ,
     version BIGINT NOT NULL DEFAULT 0,
@@ -218,6 +219,9 @@ CREATE INDEX ix_candidate_url_hash
 CREATE INDEX ix_candidate_metadata_pending
     ON candidate(metadata_status, updated_at)
     WHERE metadata_status IN ('PENDING', 'FAILED_RETRYABLE');
+CREATE INDEX ix_candidate_metadata_request_event
+    ON candidate(metadata_request_event_id)
+    WHERE metadata_request_event_id IS NOT NULL;
 
 CREATE TABLE candidate_tag (
     candidate_id BIGINT NOT NULL,
@@ -597,6 +601,10 @@ CREATE TABLE outbox_event (
     attempts INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT ck_outbox_attempts CHECK (attempts >= 0)
 );
+
+ALTER TABLE candidate
+    ADD CONSTRAINT fk_candidate_metadata_request_event
+    FOREIGN KEY (metadata_request_event_id) REFERENCES outbox_event(id);
 
 CREATE INDEX ix_outbox_trip_revision
     ON outbox_event(trip_id, trip_revision);

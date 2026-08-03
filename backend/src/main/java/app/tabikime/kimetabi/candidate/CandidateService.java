@@ -5,9 +5,12 @@ import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.HashSet;
 import java.util.stream.Collectors;
+import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +26,8 @@ import app.tabikime.kimetabi.support.idempotency.IdempotencyStore;
 
 @Service
 public class CandidateService {
+
+    private static final Pattern METADATA_ERROR_CODE = Pattern.compile("[A-Z0-9_]{1,50}");
 
     private final CandidateRepository repository;
     private final TripAuthorizationService authorization;
@@ -231,9 +236,10 @@ public class CandidateService {
                 tripId, revision, "CANDIDATE_CREATED", "candidate",
                 candidate.id(), candidate.version());
         if (candidate.metadataStatus() == MetadataStatus.PENDING) {
-            eventWriter.write(
+            UUID requestEventId = eventWriter.write(
                     tripId, revision, "CANDIDATE_METADATA_REQUESTED", "candidate",
                     candidate.id(), candidate.version());
+            repository.setMetadataRequestEvent(candidate.id(), requestEventId);
         }
         idempotencyStore.complete(
                 firebaseUid,
@@ -265,6 +271,7 @@ public class CandidateService {
         }
         String title = request.titlePresent() ? trimToNull(request.title()) : current.title();
         String url = request.urlPresent() ? normalizeUrl(request.url()) : current.url();
+        boolean urlChanged = request.urlPresent() && !Objects.equals(current.url(), url);
         Long amount = request.estAmountPresent() ? request.estAmount() : current.estAmount();
         EstimateBasis basis = request.estBasisPresent() ? request.estBasis() : current.estBasis();
         List<String> updatedTags = request.tagsPresent() ? tags(request.tags()) : current.tags();
@@ -281,7 +288,7 @@ public class CandidateService {
         if (request.titlePresent()) request.setTitle(title);
         if (request.urlPresent()) request.setUrl(url);
         if (request.tagsPresent()) request.setTags(updatedTags);
-        if (!repository.update(tripId, candidateId, request)) {
+        if (!repository.update(tripId, candidateId, request, urlChanged)) {
             CandidateResource latest = repository.find(tripId, candidateId)
                     .orElseThrow(TripNotFoundException::new);
             throw new CandidateVersionConflictException(latest);
@@ -294,7 +301,138 @@ public class CandidateService {
         eventWriter.write(
                 tripId, revision, "CANDIDATE_UPDATED", "candidate",
                 candidate.id(), candidate.version());
+        if (urlChanged && candidate.metadataStatus() == MetadataStatus.PENDING) {
+            UUID requestEventId = eventWriter.write(
+                    tripId, revision, "CANDIDATE_METADATA_REQUESTED", "candidate",
+                    candidate.id(), candidate.version());
+            repository.setMetadataRequestEvent(candidate.id(), requestEventId);
+        }
         return candidate;
+    }
+
+    @Transactional
+    public CandidateResource retryMetadata(
+            String firebaseUid,
+            long tripId,
+            long candidateId,
+            RetryCandidateMetadataRequest request
+    ) {
+        authorization.require(firebaseUid, tripId, TripPermission.CREATE_CANDIDATE);
+        CandidateResource current = repository.find(tripId, candidateId)
+                .orElseThrow(TripNotFoundException::new);
+        if (current.version() != request.version()) {
+            throw new CandidateVersionConflictException(current);
+        }
+        if (current.url() == null) {
+            throw new TripValidationException("candidateId", "URLがある候補だけ再取得できます。");
+        }
+        if (current.metadataStatus() == MetadataStatus.PENDING
+                || current.metadataStatus() == MetadataStatus.PROCESSING) {
+            throw new TripValidationException(
+                    "metadataStatus", "メタデータはすでに取得中です。");
+        }
+        if (!repository.requestMetadataRetry(tripId, candidateId, request.version())) {
+            CandidateResource latest = repository.find(tripId, candidateId)
+                    .orElseThrow(TripNotFoundException::new);
+            if (latest.version() != request.version()) {
+                throw new CandidateVersionConflictException(latest);
+            }
+            throw new TripValidationException(
+                    "metadataStatus", "現在の状態ではメタデータを再取得できません。");
+        }
+        CandidateResource candidate = repository.find(tripId, candidateId).orElseThrow();
+        long revision = eventWriter.nextRevision(tripId);
+        UUID requestEventId = eventWriter.write(
+                tripId, revision, "CANDIDATE_METADATA_REQUESTED", "candidate",
+                candidate.id(), candidate.version());
+        repository.setMetadataRequestEvent(candidate.id(), requestEventId);
+        return candidate;
+    }
+
+    @Transactional
+    public Optional<MetadataWork> startMetadataProcessing(UUID eventId, long candidateId) {
+        Objects.requireNonNull(eventId, "eventId");
+        CandidateRepository.MetadataCandidate candidate = repository
+                .lockMetadataCandidate(candidateId)
+                .orElseThrow(TripNotFoundException::new);
+        if (!eventId.equals(candidate.requestEventId())
+                || candidate.url() == null
+                || (candidate.status() != MetadataStatus.PENDING
+                    && candidate.status() != MetadataStatus.FAILED_RETRYABLE)) {
+            return Optional.empty();
+        }
+        if (!repository.startMetadataProcessing(candidateId, eventId)) {
+            return Optional.empty();
+        }
+        CandidateResource updated = repository.find(candidate.tripId(), candidateId).orElseThrow();
+        long revision = eventWriter.nextRevision(candidate.tripId());
+        eventWriter.write(
+                candidate.tripId(), revision, "CANDIDATE_UPDATED", "candidate",
+                candidateId, updated.version());
+        return Optional.of(new MetadataWork(eventId, candidateId, candidate.url()));
+    }
+
+    @Transactional
+    public CandidateResource completeMetadata(
+            UUID eventId,
+            long candidateId,
+            CandidateMetadataResult result
+    ) {
+        Objects.requireNonNull(eventId, "eventId");
+        Objects.requireNonNull(result, "result");
+        String title = trimToNull(result.title());
+        String imageUrl = trimToNull(result.imageUrl());
+        validateMetadataResult(title, imageUrl);
+        CandidateRepository.MetadataCandidate candidate = repository
+                .lockMetadataCandidate(candidateId)
+                .orElseThrow(TripNotFoundException::new);
+        if (!eventId.equals(candidate.requestEventId())
+                || candidate.status() != MetadataStatus.PROCESSING) {
+            return repository.find(candidate.tripId(), candidateId).orElseThrow();
+        }
+        if (!repository.completeMetadata(candidateId, eventId, title, imageUrl)) {
+            return repository.find(candidate.tripId(), candidateId).orElseThrow();
+        }
+        CandidateResource updated = repository.find(candidate.tripId(), candidateId).orElseThrow();
+        long revision = eventWriter.nextRevision(candidate.tripId());
+        eventWriter.write(
+                candidate.tripId(), revision, "CANDIDATE_METADATA_COMPLETED", "candidate",
+                candidateId, updated.version());
+        return updated;
+    }
+
+    @Transactional
+    public CandidateResource failMetadata(
+            UUID eventId,
+            long candidateId,
+            MetadataFailureType failureType,
+            String errorCode
+    ) {
+        Objects.requireNonNull(eventId, "eventId");
+        Objects.requireNonNull(failureType, "failureType");
+        String normalizedCode = trimToNull(errorCode);
+        if (normalizedCode == null || !METADATA_ERROR_CODE.matcher(normalizedCode).matches()) {
+            throw new IllegalArgumentException("Invalid metadata error code");
+        }
+        CandidateRepository.MetadataCandidate candidate = repository
+                .lockMetadataCandidate(candidateId)
+                .orElseThrow(TripNotFoundException::new);
+        if (!eventId.equals(candidate.requestEventId())
+                || candidate.status() != MetadataStatus.PROCESSING) {
+            return repository.find(candidate.tripId(), candidateId).orElseThrow();
+        }
+        MetadataStatus status = failureType == MetadataFailureType.RETRYABLE
+                ? MetadataStatus.FAILED_RETRYABLE
+                : MetadataStatus.FAILED_PERMANENT;
+        if (!repository.failMetadata(candidateId, eventId, status, normalizedCode)) {
+            return repository.find(candidate.tripId(), candidateId).orElseThrow();
+        }
+        CandidateResource updated = repository.find(candidate.tripId(), candidateId).orElseThrow();
+        long revision = eventWriter.nextRevision(candidate.tripId());
+        eventWriter.write(
+                candidate.tripId(), revision, "CANDIDATE_METADATA_FAILED", "candidate",
+                candidateId, updated.version());
+        return updated;
     }
 
     @Transactional
@@ -457,6 +595,27 @@ public class CandidateService {
             return trimmed;
         } catch (IllegalArgumentException exception) {
             throw new TripValidationException("url", "httpまたはhttpsのURLを指定してください。");
+        }
+    }
+
+    private void validateMetadataResult(String title, String imageUrl) {
+        if (title != null && title.length() > 200) {
+            throw new IllegalArgumentException("Metadata title is too long");
+        }
+        if (imageUrl != null && imageUrl.length() > 2048) {
+            throw new IllegalArgumentException("Metadata image URL is too long");
+        }
+        if (imageUrl != null) {
+            try {
+                URI uri = URI.create(imageUrl);
+                if (!("http".equalsIgnoreCase(uri.getScheme())
+                        || "https".equalsIgnoreCase(uri.getScheme()))
+                        || uri.getHost() == null) {
+                    throw new IllegalArgumentException();
+                }
+            } catch (IllegalArgumentException exception) {
+                throw new IllegalArgumentException("Invalid metadata image URL", exception);
+            }
         }
     }
 

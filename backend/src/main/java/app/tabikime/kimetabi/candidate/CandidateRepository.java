@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.Map;
+import java.util.UUID;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -339,10 +340,11 @@ class CandidateRepository {
         return jdbcClient.sql("""
                         INSERT INTO candidate (
                             trip_id, slot_id, created_by_member_id, title, url, note,
-                            est_amount, est_basis, metadata_status
+                            est_amount, est_basis, metadata_status, title_edited_at
                         ) VALUES (
                             :tripId, :slotId, :memberId, :title, :url, :note,
-                            :estAmount, :estBasis, :metadataStatus
+                            :estAmount, :estBasis, :metadataStatus,
+                            CASE WHEN :titleProvided THEN CURRENT_TIMESTAMP ELSE NULL END
                         )
                         RETURNING id
                         """)
@@ -350,6 +352,7 @@ class CandidateRepository {
                 .param("slotId", slotId)
                 .param("memberId", memberId)
                 .param("title", request.title())
+                .param("titleProvided", request.title() != null)
                 .param("url", request.url())
                 .param("note", request.note())
                 .param("estAmount", request.estAmount())
@@ -357,6 +360,138 @@ class CandidateRepository {
                 .param("metadataStatus", request.url() == null ? "COMPLETED" : "PENDING")
                 .query(Long.class)
                 .single();
+    }
+
+    void setMetadataRequestEvent(long candidateId, UUID eventId) {
+        int updated = jdbcClient.sql("""
+                        UPDATE candidate
+                        SET metadata_request_event_id = :eventId,
+                            metadata_updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :candidateId
+                        """)
+                .param("eventId", eventId)
+                .param("candidateId", candidateId)
+                .update();
+        if (updated != 1) {
+            throw new IllegalStateException("Metadata request candidate was not updated");
+        }
+    }
+
+    Optional<MetadataCandidate> lockMetadataCandidate(long candidateId) {
+        return jdbcClient.sql("""
+                        SELECT trip_id, id, url, metadata_status,
+                               metadata_request_event_id, version
+                        FROM candidate
+                        WHERE id = :candidateId
+                        FOR UPDATE
+                        """)
+                .param("candidateId", candidateId)
+                .query((resultSet, rowNumber) -> new MetadataCandidate(
+                        resultSet.getLong("trip_id"),
+                        resultSet.getLong("id"),
+                        resultSet.getString("url"),
+                        MetadataStatus.valueOf(resultSet.getString("metadata_status")),
+                        resultSet.getObject("metadata_request_event_id", UUID.class),
+                        resultSet.getLong("version")))
+                .optional();
+    }
+
+    boolean requestMetadataRetry(long tripId, long candidateId, long version) {
+        return jdbcClient.sql("""
+                        UPDATE candidate
+                        SET metadata_status = 'PENDING',
+                            metadata_error_code = NULL,
+                            metadata_request_event_id = NULL,
+                            metadata_updated_at = CURRENT_TIMESTAMP,
+                            version = version + 1,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE trip_id = :tripId
+                          AND id = :candidateId
+                          AND version = :version
+                          AND url IS NOT NULL
+                          AND metadata_status IN (
+                              'COMPLETED', 'FAILED_RETRYABLE', 'FAILED_PERMANENT'
+                          )
+                        """)
+                .param("tripId", tripId)
+                .param("candidateId", candidateId)
+                .param("version", version)
+                .update() == 1;
+    }
+
+    boolean startMetadataProcessing(long candidateId, UUID eventId) {
+        return jdbcClient.sql("""
+                        UPDATE candidate
+                        SET metadata_status = 'PROCESSING',
+                            metadata_error_code = NULL,
+                            metadata_attempts = metadata_attempts + 1,
+                            metadata_updated_at = CURRENT_TIMESTAMP,
+                            version = version + 1,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :candidateId
+                          AND metadata_request_event_id = :eventId
+                          AND url IS NOT NULL
+                          AND metadata_status IN ('PENDING', 'FAILED_RETRYABLE')
+                        """)
+                .param("candidateId", candidateId)
+                .param("eventId", eventId)
+                .update() == 1;
+    }
+
+    boolean completeMetadata(
+            long candidateId,
+            UUID eventId,
+            String title,
+            String imageUrl
+    ) {
+        return jdbcClient.sql("""
+                        UPDATE candidate
+                        SET title = CASE
+                                WHEN title_edited_at IS NULL AND :title IS NOT NULL
+                                THEN :title ELSE title
+                            END,
+                            image_url = CASE
+                                WHEN image_edited_at IS NULL AND :imageUrl IS NOT NULL
+                                THEN :imageUrl ELSE image_url
+                            END,
+                            metadata_status = 'COMPLETED',
+                            metadata_error_code = NULL,
+                            metadata_updated_at = CURRENT_TIMESTAMP,
+                            version = version + 1,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :candidateId
+                          AND metadata_request_event_id = :eventId
+                          AND metadata_status = 'PROCESSING'
+                        """)
+                .param("title", title)
+                .param("imageUrl", imageUrl)
+                .param("candidateId", candidateId)
+                .param("eventId", eventId)
+                .update() == 1;
+    }
+
+    boolean failMetadata(
+            long candidateId,
+            UUID eventId,
+            MetadataStatus status,
+            String errorCode
+    ) {
+        return jdbcClient.sql("""
+                        UPDATE candidate
+                        SET metadata_status = :status,
+                            metadata_error_code = :errorCode,
+                            metadata_updated_at = CURRENT_TIMESTAMP,
+                            version = version + 1,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = :candidateId
+                          AND metadata_request_event_id = :eventId
+                          AND metadata_status = 'PROCESSING'
+                        """)
+                .param("status", status.name())
+                .param("errorCode", errorCode)
+                .param("candidateId", candidateId)
+                .param("eventId", eventId)
+                .update() == 1;
     }
 
     void replaceTags(long tripId, long candidateId, List<String> tags) {
@@ -614,7 +749,12 @@ class CandidateRepository {
                 .list();
     }
 
-    boolean update(long tripId, long candidateId, UpdateCandidateRequest request) {
+    boolean update(
+            long tripId,
+            long candidateId,
+            UpdateCandidateRequest request,
+            boolean urlChanged
+    ) {
         return jdbcClient.sql("""
                         UPDATE candidate
                         SET title = CASE WHEN :titlePresent THEN :title ELSE title END,
@@ -629,6 +769,17 @@ class CandidateRepository {
                                 WHEN NOT :titlePresent THEN title_edited_at
                                 ELSE CURRENT_TIMESTAMP
                             END,
+                            metadata_status = CASE
+                                WHEN NOT :urlChanged THEN metadata_status
+                                WHEN :urlCleared THEN 'COMPLETED'
+                                ELSE 'PENDING'
+                            END,
+                            metadata_error_code = CASE
+                                WHEN :urlChanged THEN NULL ELSE metadata_error_code
+                            END,
+                            metadata_request_event_id = CASE
+                                WHEN :urlChanged THEN NULL ELSE metadata_request_event_id
+                            END,
                             version = version + 1,
                             updated_at = CURRENT_TIMESTAMP
                         WHERE trip_id = :tripId
@@ -639,6 +790,8 @@ class CandidateRepository {
                 .param("titlePresent", request.titlePresent())
                 .param("url", request.url())
                 .param("urlPresent", request.urlPresent())
+                .param("urlChanged", urlChanged)
+                .param("urlCleared", urlChanged && request.url() == null)
                 .param("note", request.note())
                 .param("notePresent", request.notePresent())
                 .param("estAmount", request.estAmount())
@@ -651,6 +804,16 @@ class CandidateRepository {
                 .param("candidateId", candidateId)
                 .param("version", request.version())
                 .update() == 1;
+    }
+
+    record MetadataCandidate(
+            long tripId,
+            long candidateId,
+            String url,
+            MetadataStatus status,
+            UUID requestEventId,
+            long version
+    ) {
     }
 
     private List<String> listTags(long candidateId) {

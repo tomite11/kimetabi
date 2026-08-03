@@ -2,6 +2,7 @@ package app.tabikime.kimetabi.candidate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -12,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -53,6 +55,9 @@ class CandidateApiTest {
 
     @Autowired
     private JdbcClient jdbcClient;
+
+    @Autowired
+    private CandidateService candidateService;
 
 
     @BeforeEach
@@ -210,6 +215,119 @@ class CandidateApiTest {
             jdbcClient.sql("DROP FUNCTION reject_metadata_job_request()")
                     .update();
         }
+    }
+
+    @Test
+    void candidateCreationReturnsWithinThreeSecondsWithoutExternalMetadataFetch() {
+        assertTimeout(Duration.ofSeconds(3), () ->
+                candidateRequest("{\"url\":\"https://unresponsive.invalid/hotel\"}")
+                        .andExpect(status().isCreated())
+                        .andExpect(jsonPath("$.metadataStatus").value("PENDING")));
+
+        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM candidate")
+                .query(Long.class).single()).isEqualTo(1);
+        assertThat(jdbcClient.sql("""
+                        SELECT COUNT(*) FROM outbox_event
+                        WHERE event_type = 'CANDIDATE_METADATA_REQUESTED'
+                        """).query(Long.class).single()).isEqualTo(1);
+    }
+
+    @Test
+    void metadataCompletionPreservesUserTitleAndAppliesUneditedImage() throws Exception {
+        candidateRequest("""
+                {"title":"入力タイトル","url":"https://example.com/hotel"}
+                """).andExpect(status().isCreated());
+        UUID eventId = metadataRequestEventId(1);
+
+        assertThat(candidateService.startMetadataProcessing(eventId, 1))
+                .contains(new MetadataWork(eventId, 1, "https://example.com/hotel"));
+        mockMvc.perform(patch("/api/trips/1/candidates/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":1,\"title\":\"利用者による更新\"}")
+                        .with(principal("owner-a")))
+                .andExpect(status().isOk());
+
+        CandidateResource completed = candidateService.completeMetadata(
+                eventId,
+                1,
+                new CandidateMetadataResult(
+                        "遅延取得タイトル", "https://example.com/image.jpg"));
+
+        assertThat(completed.metadataStatus()).isEqualTo(MetadataStatus.COMPLETED);
+        assertThat(completed.title()).isEqualTo("利用者による更新");
+        assertThat(completed.imageUrl()).isEqualTo("https://example.com/image.jpg");
+        assertThat(completed.version()).isEqualTo(3);
+        assertThat(jdbcClient.sql("SELECT revision FROM trip WHERE id = 1")
+                .query(Long.class).single()).isEqualTo(4);
+        assertThat(jdbcClient.sql("""
+                        SELECT event_type FROM outbox_event
+                        WHERE trip_id = 1 ORDER BY trip_revision, created_at
+                        """).query(String.class).list()).containsExactly(
+                                "CANDIDATE_CREATED",
+                                "CANDIDATE_METADATA_REQUESTED",
+                                "CANDIDATE_UPDATED",
+                                "CANDIDATE_UPDATED",
+                                "CANDIDATE_METADATA_COMPLETED");
+
+        CandidateResource replay = candidateService.completeMetadata(
+                eventId, 1, new CandidateMetadataResult("再適用", null));
+        assertThat(replay).isEqualTo(completed);
+        assertThat(jdbcClient.sql("SELECT revision FROM trip WHERE id = 1")
+                .query(Long.class).single()).isEqualTo(4);
+    }
+
+    @Test
+    void retryCreatesNewJobAndRejectsStaleJobAndCrossTripAccess() throws Exception {
+        candidateRequest("{\"url\":\"https://example.com/hotel\"}")
+                .andExpect(status().isCreated());
+        UUID firstEventId = metadataRequestEventId(1);
+        assertThat(candidateService.startMetadataProcessing(firstEventId, 1)).isPresent();
+        CandidateResource failed = candidateService.failMetadata(
+                firstEventId, 1, MetadataFailureType.RETRYABLE, "DNS_FAILURE");
+        assertThat(failed.metadataStatus()).isEqualTo(MetadataStatus.FAILED_RETRYABLE);
+        assertThat(failed.metadataErrorCode()).isEqualTo("DNS_FAILURE");
+
+        mockMvc.perform(post("/api/trips/2/candidates/1/metadata/retry")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":2}")
+                        .with(principal("owner-b")))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(post("/api/trips/1/candidates/1/metadata/retry")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":2}")
+                        .with(principal("owner-a")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.metadataStatus").value("PENDING"))
+                .andExpect(jsonPath("$.metadataErrorCode").doesNotExist())
+                .andExpect(jsonPath("$.version").value(3));
+
+        UUID secondEventId = metadataRequestEventId(1);
+        assertThat(secondEventId).isNotEqualTo(firstEventId);
+        assertThat(candidateService.startMetadataProcessing(firstEventId, 1)).isEmpty();
+        assertThat(candidateService.startMetadataProcessing(secondEventId, 1)).isPresent();
+    }
+
+    @Test
+    void metadataFailureClassificationAndRetryStateAreValidated() throws Exception {
+        candidateRequest("{\"url\":\"https://example.com/hotel\"}")
+                .andExpect(status().isCreated());
+        UUID eventId = metadataRequestEventId(1);
+
+        mockMvc.perform(post("/api/trips/1/candidates/1/metadata/retry")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":0}")
+                        .with(principal("owner-a")))
+                .andExpect(status().isUnprocessableEntity());
+
+        assertThat(candidateService.startMetadataProcessing(eventId, 1)).isPresent();
+        CandidateResource failed = candidateService.failMetadata(
+                eventId, 1, MetadataFailureType.PERMANENT, "SSRF_REJECTED");
+        assertThat(failed.metadataStatus()).isEqualTo(MetadataStatus.FAILED_PERMANENT);
+        assertThat(failed.metadataErrorCode()).isEqualTo("SSRF_REJECTED");
+        assertThatThrownBy(() -> candidateService.failMetadata(
+                eventId, 1, MetadataFailureType.PERMANENT, "invalid-code"))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -883,6 +1001,17 @@ class CandidateApiTest {
                             trip_id, slot_id, created_by_member_id, title, metadata_status
                         ) VALUES (1, 1, 1, '候補', 'COMPLETED')
                         """).update();
+    }
+
+    private UUID metadataRequestEventId(long candidateId) {
+        return jdbcClient.sql("""
+                        SELECT metadata_request_event_id
+                        FROM candidate
+                        WHERE id = :candidateId
+                        """)
+                .param("candidateId", candidateId)
+                .query(UUID.class)
+                .single();
     }
 
     private void addPlanningMembers() {

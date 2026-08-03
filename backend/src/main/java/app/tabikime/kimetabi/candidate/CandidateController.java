@@ -120,6 +120,17 @@ public class CandidateController {
         return service.update(principal.firebaseUid(), tripId, candidateId, request);
     }
 
+    @PostMapping("/candidates/{candidateId}/metadata/retry")
+    CandidateResource retryCandidateMetadata(
+            @AuthenticationPrincipal AppPrincipal principal,
+            @PathVariable @Min(1) long tripId,
+            @PathVariable @Min(1) long candidateId,
+            @Valid @RequestBody RetryCandidateMetadataRequest request
+    ) {
+        return service.retryMetadata(
+                principal.firebaseUid(), tripId, candidateId, request);
+    }
+
     @PutMapping("/candidates/{candidateId}/vote")
     VoteView putVote(
             @AuthenticationPrincipal AppPrincipal principal,

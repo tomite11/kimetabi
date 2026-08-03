@@ -231,6 +231,7 @@ CREATE TABLE candidate (
   metadata_error_code VARCHAR(50),
   metadata_attempts INT NOT NULL DEFAULT 0,
   metadata_updated_at TIMESTAMPTZ,
+  metadata_request_event_id UUID,       -- 現在有効な取得要求。遅延した旧jobの適用を防ぐ
   version      BIGINT NOT NULL DEFAULT 0
 );
 
@@ -422,6 +423,8 @@ CREATE TABLE outbox_event (
   画像にアップロード状態を持たせる
 - 旅行横断のID取り違えをDBでも防ぐため、旅行配下の主要な外部キーは
   `(resource_id, trip_id)` の複合外部キーとする
+- 候補は現在有効なmetadata取得要求のOutbox event IDを保持し、明示的な再取得後に
+  到着した旧jobや重複jobが新しい状態へmetadataを再適用しない
 
 DBのCHECK制約だけでは表現できない「ACTIVEなOWNERが必ず1人」「確定負担額合計と
 支出額の一致」「採択候補と枠の一致」「確定済み精算の不変性」は、サービスの同一
