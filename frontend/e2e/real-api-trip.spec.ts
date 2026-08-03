@@ -44,13 +44,28 @@ test("匿名Firebaseユーザーが実APIで旅行作成から候補採択と予
   await firstSlot.click();
   await expect(page.getByText("候補はまだありません")).toBeVisible();
 
+  const urlCandidateTitle = "公式サイト候補";
+  await page.getByLabel("名前").fill(urlCandidateTitle);
+  await page.getByLabel("URL").fill("https://example.com/hotel");
+  await page.getByRole("button", { name: "この枠に追加" }).click();
+  const urlCandidate = page
+    .getByRole("article")
+    .filter({ hasText: urlCandidateTitle });
+  await expect(urlCandidate.getByText("情報を取得待ち")).toBeVisible();
+
   const candidateTitle = "朝の新幹線";
   await page.getByLabel("名前").fill(candidateTitle);
+  await page.getByLabel("URL").fill("");
   await page.getByRole("textbox", { name: "金額", exact: true }).fill("12000");
   await page.getByRole("button", { name: "この枠に追加" }).click();
-  await expect(page.getByText(candidateTitle, { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "これがいい" }).click();
-  await expect(page.getByText(/いい 1/)).toBeVisible();
+  const manualCandidate = page
+    .getByRole("article")
+    .filter({ hasText: candidateTitle });
+  await expect(
+    manualCandidate.getByText(candidateTitle, { exact: true }),
+  ).toBeVisible();
+  await manualCandidate.getByRole("button", { name: "これがいい" }).click();
+  await expect(manualCandidate.getByText(/いい 1/)).toBeVisible();
   await page.getByRole("button", { name: "この候補を決定" }).click();
   await expect(
     page.getByRole("button", { name: "この候補に変更" }),

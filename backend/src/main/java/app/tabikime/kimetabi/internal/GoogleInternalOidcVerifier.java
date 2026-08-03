@@ -3,6 +3,7 @@ package app.tabikime.kimetabi.internal;
 import com.google.auth.oauth2.TokenVerifier;
 import com.google.auth.oauth2.TokenVerifier.VerificationException;
 import com.google.api.client.json.webtoken.JsonWebSignature;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -12,10 +13,19 @@ final class GoogleInternalOidcVerifier implements InternalOidcVerifier {
     private final TokenVerifier tasksVerifier;
     private final TokenVerifier schedulerVerifier;
 
+    @Autowired
     GoogleInternalOidcVerifier(InternalOidcProperties properties) {
+        this(properties, build(properties.tasks()), build(properties.scheduler()));
+    }
+
+    GoogleInternalOidcVerifier(
+            InternalOidcProperties properties,
+            TokenVerifier tasksVerifier,
+            TokenVerifier schedulerVerifier
+    ) {
         this.properties = properties;
-        this.tasksVerifier = build(properties.tasks());
-        this.schedulerVerifier = build(properties.scheduler());
+        this.tasksVerifier = tasksVerifier;
+        this.schedulerVerifier = schedulerVerifier;
     }
 
     @Override
