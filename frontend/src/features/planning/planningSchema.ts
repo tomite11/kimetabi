@@ -32,3 +32,21 @@ export const candidateSchema = z
   });
 
 export type CandidateFormValues = z.infer<typeof candidateSchema>;
+
+export const candidateRequestSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200).optional(),
+    url: z
+      .string()
+      .url()
+      .regex(/^https?:\/\//)
+      .max(2048)
+      .optional(),
+    note: z.string().max(2000).optional(),
+    tags: z.array(z.string().min(1).max(40)).max(20).optional(),
+    estAmount: z.number().int().min(0).optional(),
+    estBasis: z.enum(["PER_PERSON", "TOTAL"]).optional(),
+  })
+  .refine((value) => value.title != null || value.url != null);
+
+export type CandidateRequestValues = z.infer<typeof candidateRequestSchema>;

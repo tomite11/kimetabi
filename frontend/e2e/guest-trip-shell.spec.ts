@@ -68,6 +68,14 @@ test("匿名参加後もモバイルで3タブ、フォーカス、空状態を�
         ),
     )
     .toBe(true);
+
+  const urlInput = page.getByRole("textbox", { name: "URL" });
+  await urlInput.focus();
+  await expect(urlInput).toBeFocused();
+  await urlInput.fill("https://example.com/new-hotel");
+  await page.getByRole("textbox", { name: "金額" }).fill("18000");
+  await page.getByRole("button", { name: "この枠に追加" }).click();
+  await expect(page.getByText("情報を取得済み")).toHaveCount(3);
   await page.screenshot({
     path: testInfo.outputPath("candidate-comparison-mobile.png"),
     fullPage: true,

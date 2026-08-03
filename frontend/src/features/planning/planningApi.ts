@@ -133,6 +133,44 @@ export async function putVote(
   return data;
 }
 
+export async function retryCandidateMetadata(
+  tripId: number,
+  candidate: Candidate,
+) {
+  const { data, error, response } = await apiClient.POST(
+    "/api/trips/{tripId}/candidates/{candidateId}/metadata/retry",
+    {
+      params: { path: { tripId, candidateId: candidate.id } },
+      body: { version: candidate.version },
+    },
+  );
+  if (!data) failed(response.status, error);
+  return data as Candidate;
+}
+
+export async function updateCandidateManually(
+  tripId: number,
+  candidate: Candidate,
+  title: string,
+  estAmount: number | null,
+) {
+  const { data, error, response } = await apiClient.PATCH(
+    "/api/trips/{tripId}/candidates/{candidateId}",
+    {
+      params: { path: { tripId, candidateId: candidate.id } },
+      body: {
+        version: candidate.version,
+        title,
+        estAmount,
+        estBasis:
+          estAmount == null ? null : (candidate.estBasis ?? "PER_PERSON"),
+      },
+    },
+  );
+  if (!data) failed(response.status, error);
+  return data as Candidate;
+}
+
 export async function adoptCandidate(
   tripId: number,
   slot: Slot,

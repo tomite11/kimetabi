@@ -15,6 +15,9 @@ export interface PendingOperation {
   createdAt: string;
   retryCount: number;
   state: PendingOperationState;
+  operationType?: "CREATE_CANDIDATE";
+  resourceId?: number;
+  lastProblem?: string;
 }
 
 export class KimetabiDatabase extends Dexie {
@@ -25,6 +28,10 @@ export class KimetabiDatabase extends Dexie {
     this.version(1).stores({
       pendingOperations:
         "++id, [firebaseUid+tripId], createdAt, state, idempotencyKey",
+    });
+    this.version(2).stores({
+      pendingOperations:
+        "++id, [firebaseUid+tripId], createdAt, state, idempotencyKey, operationType",
     });
   }
 }

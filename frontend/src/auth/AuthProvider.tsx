@@ -15,17 +15,20 @@ import {
 } from "./firebaseAuth";
 
 type AuthState = {
+  uid: string;
   isAnonymous: boolean;
   status: "loading" | "ready" | "error";
 };
 
 const AuthContext = createContext<AuthState>({
+  uid: "local-anonymous",
   isAnonymous: true,
   status: "ready",
 });
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<AuthState>({
+    uid: "",
     isAnonymous: true,
     status: "loading",
   });
@@ -36,9 +39,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
     if (!hasFirebaseConfig()) {
       if (import.meta.env.VITE_ENABLE_MSW === "true") {
         setAccessTokenProvider(async () => "msw-anonymous-token");
-        setState({ isAnonymous: true, status: "ready" });
+        setState({ uid: "msw-anonymous", isAnonymous: true, status: "ready" });
       } else {
-        setState({ isAnonymous: true, status: "error" });
+        setState({ uid: "", isAnonymous: true, status: "error" });
       }
       return () => setAccessTokenProvider();
     }
@@ -48,10 +51,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
       .then((user) => {
         if (!active) return;
         setAccessTokenProvider(() => user.getIdToken());
-        setState({ isAnonymous: user.isAnonymous, status: "ready" });
+        setState({
+          uid: user.uid,
+          isAnonymous: user.isAnonymous,
+          status: "ready",
+        });
       })
       .catch(() => {
-        if (active) setState({ isAnonymous: true, status: "error" });
+        if (active) setState({ uid: "", isAnonymous: true, status: "error" });
       });
 
     return () => {

@@ -1,22 +1,30 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useParams } from "react-router";
 
 import type { components } from "../../api/generated/schema";
+import { useAuth } from "../../auth/AuthProvider";
 import { tripKeys } from "../trips/tripQueries";
 import { useTripSnapshot } from "../trips/TripShell";
 import {
   adoptCandidate,
-  createCandidate,
   PlanningApiError,
   planningKeys,
   putVote,
+  retryCandidateMetadata,
+  updateCandidateManually,
   slotDetailQuery,
   type Candidate,
   type VoteChoice,
 } from "./planningApi";
+import {
+  enqueueCandidate,
+  flushCandidateQueue,
+  listQueuedCandidates,
+  type QueuedCandidate,
+} from "./candidateQueue";
 import { candidateSchema, type CandidateFormValues } from "./planningSchema";
 import styles from "./Planning.module.css";
 
@@ -27,6 +35,15 @@ const voteLabels: Record<VoteChoice, string> = {
   ANY: "どちらでも",
   NO: "むり",
 };
+
+const metadataLabels: Record<components["schemas"]["MetadataStatus"], string> =
+  {
+    PENDING: "情報を取得待ち",
+    PROCESSING: "情報を取得中",
+    COMPLETED: "情報を取得済み",
+    FAILED_RETRYABLE: "取得に失敗・再試行できます",
+    FAILED_PERMANENT: "自動取得できませんでした",
+  };
 
 function candidatePerPerson(
   candidate: Candidate,
@@ -44,14 +61,23 @@ export function CandidateComparisonPage() {
   const tripId = Number(tripValue);
   const slotId = Number(slotValue);
   const snapshot = useTripSnapshot();
+  const { uid } = useAuth();
   const queryClient = useQueryClient();
   const detailQuery = useQuery(slotDetailQuery(tripId, slotId));
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [noCandidateId, setNoCandidateId] = useState<number | null>(null);
   const [reason, setReason] = useState("");
   const [conflict, setConflict] = useState<string | null>(null);
-  const candidateIdempotencyKey = useRef(crypto.randomUUID());
+  const [queuedCandidates, setQueuedCandidates] = useState<QueuedCandidate[]>(
+    [],
+  );
+  const [editingCandidateId, setEditingCandidateId] = useState<number | null>(
+    null,
+  );
+  const [manualTitle, setManualTitle] = useState("");
+  const [manualAmount, setManualAmount] = useState("");
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const urlInputRef = useRef<HTMLInputElement | null>(null);
   const form = useForm<CandidateFormValues>({
     resolver: zodResolver(candidateSchema),
     defaultValues: {
@@ -67,30 +93,97 @@ export function CandidateComparisonPage() {
   const canAdopt =
     currentMember?.role === "OWNER" || currentMember?.role === "ORGANIZER";
 
+  const applyCreatedCandidate = useCallback(
+    (candidate: Candidate) => {
+      queryClient.setQueryData(
+        planningKeys.slot(tripId, slotId),
+        (current: components["schemas"]["SlotDetail"] | undefined) =>
+          current
+            ? {
+                ...current,
+                candidates: current.candidates.some(
+                  (currentCandidate) => currentCandidate.id === candidate.id,
+                )
+                  ? current.candidates.map((currentCandidate) =>
+                      currentCandidate.id === candidate.id
+                        ? candidate
+                        : currentCandidate,
+                    )
+                  : [...current.candidates, candidate],
+              }
+            : current,
+      );
+      setSelectedId(candidate.id);
+    },
+    [queryClient, slotId, tripId],
+  );
+
+  const refreshQueue = useCallback(async () => {
+    setQueuedCandidates(await listQueuedCandidates(uid, tripId, slotId));
+  }, [slotId, tripId, uid]);
+
+  const flushQueue = useCallback(async () => {
+    if (!navigator.onLine) {
+      await refreshQueue();
+      return;
+    }
+    await flushCandidateQueue(uid, tripId, applyCreatedCandidate);
+    await refreshQueue();
+  }, [applyCreatedCandidate, refreshQueue, tripId, uid]);
+
   useEffect(() => {
     if (detailQuery.isSuccess) headingRef.current?.focus();
   }, [detailQuery.isSuccess]);
 
+  useEffect(() => {
+    void refreshQueue().then(flushQueue);
+    const retry = () => void flushQueue();
+    const retryOnFocus = () => {
+      if (document.visibilityState === "visible") retry();
+    };
+    window.addEventListener("online", retry);
+    window.addEventListener("focus", retry);
+    document.addEventListener("visibilitychange", retryOnFocus);
+    return () => {
+      window.removeEventListener("online", retry);
+      window.removeEventListener("focus", retry);
+      document.removeEventListener("visibilitychange", retryOnFocus);
+    };
+  }, [flushQueue, refreshQueue]);
+
   const createMutation = useMutation({
-    mutationFn: (values: CandidateFormValues) =>
-      createCandidate(tripId, slotId, candidateIdempotencyKey.current, {
+    mutationFn: async (values: CandidateFormValues) => {
+      await enqueueCandidate(uid, tripId, slotId, {
         title: values.title || undefined,
         url: values.url || undefined,
         estAmount: values.estAmount === "" ? undefined : values.estAmount,
         estBasis: values.estAmount === "" ? undefined : values.estBasis,
         tags: [],
-      }),
-    onSuccess: (candidate) => {
-      queryClient.setQueryData(
-        planningKeys.slot(tripId, slotId),
-        (current: components["schemas"]["SlotDetail"] | undefined) =>
-          current
-            ? { ...current, candidates: [...current.candidates, candidate] }
-            : current,
-      );
-      setSelectedId(candidate.id);
-      candidateIdempotencyKey.current = crypto.randomUUID();
+      });
+      await refreshQueue();
+      await flushQueue();
+    },
+    onSuccess: () => {
       form.reset();
+      urlInputRef.current?.focus();
+    },
+  });
+  const retryMetadataMutation = useMutation({
+    mutationFn: (candidate: Candidate) =>
+      retryCandidateMetadata(tripId, candidate),
+    onSuccess: applyCreatedCandidate,
+  });
+  const manualUpdateMutation = useMutation({
+    mutationFn: (candidate: Candidate) =>
+      updateCandidateManually(
+        tripId,
+        candidate,
+        manualTitle.trim(),
+        manualAmount === "" ? null : Number(manualAmount),
+      ),
+    onSuccess: (candidate) => {
+      applyCreatedCandidate(candidate);
+      setEditingCandidateId(null);
     },
   });
   const voteMutation = useMutation({
@@ -243,9 +336,46 @@ export function CandidateComparisonPage() {
         <div className={styles.emptyState}>
           <strong>候補はまだありません</strong>
           <p>URLを貼るか、名前だけでも追加できます。</p>
+          <button
+            className={styles.secondaryButton}
+            type="button"
+            onClick={() => urlInputRef.current?.focus()}
+          >
+            URLから候補を追加
+          </button>
         </div>
       ) : null}
       <div className={styles.candidateList}>
+        {queuedCandidates.map((operation) => {
+          const payload = operation.payload;
+          return (
+            <article className={styles.candidateCard} key={operation.id}>
+              <div className={styles.pendingVisual} aria-hidden="true">
+                待
+              </div>
+              <div className={styles.candidateBody}>
+                <strong>
+                  {payload.title || "情報を取得して名前を表示します"}
+                </strong>
+                <p
+                  className={styles.metadataStatus}
+                  data-state={operation.state}
+                >
+                  {operation.state === "CONFLICT"
+                    ? "ほかの操作と競合しました"
+                    : operation.state === "NEEDS_CORRECTION"
+                      ? "入力内容の修正が必要です"
+                      : navigator.onLine
+                        ? "候補を送信しています…"
+                        : "オフラインで保存しました。接続後に送信します"}
+                </p>
+                {payload.url ? (
+                  <small>{new URL(payload.url).hostname}</small>
+                ) : null}
+              </div>
+            </article>
+          );
+        })}
         {detail.candidates.map((candidate) => {
           const view: VoteView | undefined =
             detail.votesByCandidate[String(candidate.id)];
@@ -279,6 +409,25 @@ export function CandidateComparisonPage() {
               </button>
               <div className={styles.candidateBody}>
                 <strong>{candidate.title || "名称未設定"}</strong>
+                <p
+                  className={styles.metadataStatus}
+                  data-status={candidate.metadataStatus}
+                  role={
+                    candidate.metadataStatus === "PROCESSING"
+                      ? "status"
+                      : undefined
+                  }
+                >
+                  {metadataLabels[candidate.metadataStatus]}
+                </p>
+                {candidate.imageUrl ? (
+                  <img
+                    className={styles.candidateImage}
+                    src={candidate.imageUrl}
+                    alt=""
+                    loading="lazy"
+                  />
+                ) : null}
                 <div className={styles.candidatePrice}>
                   ¥{amount.toLocaleString("ja-JP")}{" "}
                   <small>
@@ -295,6 +444,82 @@ export function CandidateComparisonPage() {
                       <span key={tag}>{tag}</span>
                     ))}
                   </div>
+                ) : null}
+                {candidate.metadataStatus === "FAILED_RETRYABLE" ? (
+                  <button
+                    className={styles.retryButton}
+                    disabled={retryMetadataMutation.isPending}
+                    type="button"
+                    onClick={() => retryMetadataMutation.mutate(candidate)}
+                  >
+                    メタデータを再取得
+                  </button>
+                ) : null}
+                {candidate.metadataStatus === "FAILED_PERMANENT" ? (
+                  <>
+                    <small>自動取得なしでも候補はそのまま利用できます。</small>
+                    <button
+                      className={styles.retryButton}
+                      type="button"
+                      onClick={() => {
+                        setEditingCandidateId(candidate.id);
+                        setManualTitle(candidate.title ?? "");
+                        setManualAmount(candidate.estAmount?.toString() ?? "");
+                      }}
+                    >
+                      名前と金額を手入力
+                    </button>
+                  </>
+                ) : null}
+                {editingCandidateId === candidate.id ? (
+                  <form
+                    className={styles.manualForm}
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      if (manualTitle.trim())
+                        manualUpdateMutation.mutate(candidate);
+                    }}
+                  >
+                    <label>
+                      候補名
+                      <input
+                        autoFocus
+                        required
+                        value={manualTitle}
+                        onChange={(event) => setManualTitle(event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      金額
+                      <input
+                        inputMode="numeric"
+                        min="0"
+                        type="number"
+                        value={manualAmount}
+                        onChange={(event) =>
+                          setManualAmount(event.target.value)
+                        }
+                      />
+                    </label>
+                    <div className={styles.manualActions}>
+                      <button
+                        className={styles.secondaryButton}
+                        type="button"
+                        onClick={() => setEditingCandidateId(null)}
+                      >
+                        キャンセル
+                      </button>
+                      <button
+                        className={styles.retryButton}
+                        disabled={
+                          !manualTitle.trim() || manualUpdateMutation.isPending
+                        }
+                        type="submit"
+                      >
+                        手入力を保存
+                      </button>
+                    </div>
+                  </form>
                 ) : null}
                 <div
                   className={styles.voteRow}
@@ -352,7 +577,15 @@ export function CandidateComparisonPage() {
         </label>
         <label>
           URL
-          <input inputMode="url" {...form.register("url")} />
+          <input
+            inputMode="url"
+            placeholder="https://example.com/hotel"
+            {...form.register("url")}
+            ref={(element) => {
+              form.register("url").ref(element);
+              urlInputRef.current = element;
+            }}
+          />
         </label>
         {form.formState.errors.title ||
         form.formState.errors.url ||
@@ -382,6 +615,16 @@ export function CandidateComparisonPage() {
         {createMutation.isError ? (
           <p className={styles.error} role="alert">
             候補を追加できませんでした。入力内容と通信状態を確認してください。
+          </p>
+        ) : null}
+        {retryMetadataMutation.isError ? (
+          <p className={styles.error} role="alert">
+            メタデータを再取得できませんでした。もう一度お試しください。
+          </p>
+        ) : null}
+        {manualUpdateMutation.isError ? (
+          <p className={styles.error} role="alert">
+            手入力を保存できませんでした。現在値を確認してください。
           </p>
         ) : null}
       </form>

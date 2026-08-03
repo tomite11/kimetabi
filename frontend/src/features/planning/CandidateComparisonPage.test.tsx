@@ -11,9 +11,17 @@ import {
 } from "../../test/mocks/fixtures";
 import { server } from "../../test/mocks/server";
 import { TripShell } from "../trips/TripShell";
+import { database } from "../../offline/database";
 import { CandidateComparisonPage } from "./CandidateComparisonPage";
 
-afterEach(cleanup);
+afterEach(async () => {
+  cleanup();
+  await database.pendingOperations.clear();
+  Object.defineProperty(navigator, "onLine", {
+    configurable: true,
+    value: true,
+  });
+});
 
 function renderPage() {
   return renderWithProviders(
@@ -83,6 +91,110 @@ describe("CandidateComparisonPage", () => {
 
     expect(await screen.findByText("候補はまだありません")).toBeVisible();
     expect(screen.getByRole("button", { name: "この枠に追加" })).toBeVisible();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "URLから候補を追加" }));
+    expect(screen.getByRole("textbox", { name: "URL" })).toHaveFocus();
+  });
+
+  it("オフライン操作を保存し同じIdempotency-Keyでonline復帰時に再送する", async () => {
+    const keys: string[] = [];
+    let attempts = 0;
+    server.use(
+      http.post("*/api/trips/42/slots/101/candidates", async ({ request }) => {
+        keys.push(request.headers.get("Idempotency-Key") ?? "");
+        attempts += 1;
+        if (attempts === 1) {
+          await new Promise((resolve) => setTimeout(resolve, 30));
+          return HttpResponse.error();
+        }
+        const body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          {
+            ...transportSlotDetail.candidates[0],
+            ...body,
+            id: 509,
+            metadataStatus: "PENDING",
+          },
+          { status: 201 },
+        );
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(
+      await screen.findByRole("textbox", { name: "URL" }),
+      "https://example.com/new-hotel",
+    );
+    await user.type(screen.getByRole("textbox", { name: "金額" }), "18000");
+    await user.click(screen.getByRole("button", { name: "この枠に追加" }));
+
+    expect(await screen.findByText("候補を送信しています…")).toBeVisible();
+    window.dispatchEvent(new Event("online"));
+    expect(await screen.findByText("情報を取得待ち")).toBeVisible();
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).not.toBe("");
+    expect(keys[1]).toBe(keys[0]);
+    expect(await database.pendingOperations.count()).toBe(0);
+  });
+
+  it("metadata失敗状態を区別しretryableだけ再取得できる", async () => {
+    server.use(
+      http.get("*/api/trips/42/slots/101", () =>
+        HttpResponse.json({
+          ...transportSlotDetail,
+          candidates: [
+            {
+              ...transportSlotDetail.candidates[0],
+              metadataStatus: "FAILED_RETRYABLE",
+              metadataErrorCode: "FETCH_TIMEOUT",
+            },
+            {
+              ...transportSlotDetail.candidates[1],
+              metadataStatus: "FAILED_PERMANENT",
+              metadataErrorCode: "SSRF_REJECTED",
+            },
+          ],
+        }),
+      ),
+      http.post("*/api/trips/42/candidates/501/metadata/retry", () =>
+        HttpResponse.json({
+          ...transportSlotDetail.candidates[0],
+          metadataStatus: "PENDING",
+          version: 1,
+        }),
+      ),
+      http.patch("*/api/trips/42/candidates/502", async ({ request }) => {
+        const body = (await request.json()) as {
+          title: string;
+          estAmount: number;
+        };
+        return HttpResponse.json({
+          ...transportSlotDetail.candidates[1],
+          ...body,
+          metadataStatus: "FAILED_PERMANENT",
+          version: 1,
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByText("取得に失敗・再試行できます")).toBeVisible();
+    expect(screen.getByText("自動取得できませんでした")).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: "名前と金額を手入力" }),
+    );
+    const manualName = screen.getByRole("textbox", { name: "候補名" });
+    expect(manualName).toHaveFocus();
+    await user.clear(manualName);
+    await user.type(manualName, "手入力の候補");
+    await user.click(screen.getByRole("button", { name: "手入力を保存" }));
+    expect(await screen.findByText("手入力の候補")).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: "メタデータを再取得" }),
+    );
+    expect(await screen.findByText("情報を取得待ち")).toBeVisible();
   });
 
   it("一般メンバーには候補採択を表示しない", async () => {

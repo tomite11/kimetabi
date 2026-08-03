@@ -189,10 +189,85 @@
   background: color-mix(in srgb, var(--color-sky), white 75%);
   border: 0;
 }
+.pendingVisual {
+  display: grid;
+  min-height: 7rem;
+  color: var(--color-ink-soft);
+  font-family: var(--font-serif);
+  font-size: 2rem;
+  place-items: center;
+  background: color-mix(in srgb, var(--color-sun), white 76%);
+}
 .candidateBody {
   display: grid;
   gap: 0.75rem;
   padding: 1rem;
+}
+.candidateImage {
+  width: 100%;
+  max-height: 12rem;
+  object-fit: cover;
+  border-radius: var(--radius-small);
+}
+.metadataStatus {
+  width: fit-content;
+  margin: 0;
+  padding: 0.3rem 0.65rem;
+  color: var(--color-ink-soft);
+  font-size: 0.78rem;
+  font-weight: 800;
+  background: var(--color-mist);
+  border-radius: 999px;
+}
+.metadataStatus[data-status="PENDING"],
+.metadataStatus[data-status="PROCESSING"],
+.metadataStatus[data-state="PENDING"],
+.metadataStatus[data-state="RETRYING"] {
+  background: color-mix(in srgb, var(--color-sun), white 65%);
+}
+.metadataStatus[data-status="FAILED_RETRYABLE"],
+.metadataStatus[data-status="FAILED_PERMANENT"],
+.metadataStatus[data-state="CONFLICT"],
+.metadataStatus[data-state="NEEDS_CORRECTION"] {
+  color: var(--color-coral-deep);
+  background: color-mix(in srgb, var(--color-coral), white 84%);
+}
+.retryButton {
+  width: fit-content;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.85rem;
+  color: var(--color-coral-deep);
+  font: inherit;
+  font-weight: 900;
+  background: white;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+}
+.manualForm,
+.manualForm label {
+  display: grid;
+  gap: var(--space-2);
+}
+.manualForm {
+  padding: var(--space-4);
+  background: var(--color-paper);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-small);
+}
+.manualForm label {
+  font-weight: 800;
+}
+.manualForm input {
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  border: 1px solid var(--color-line);
+  border-radius: 0.65rem;
+}
+.manualActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 .candidatePrice {
   font-size: 1.4rem;
@@ -233,6 +308,7 @@
 .candidateForm {
   display: grid;
   gap: 0.75rem;
+  margin-block-end: 9rem;
   padding: 1rem;
   background: white;
   border: 1px dashed var(--color-sky);
@@ -282,11 +358,19 @@
   .candidateCard {
     grid-template-columns: 1fr;
   }
+  .candidateSelect,
+  .pendingVisual {
+    min-height: 4.5rem;
+  }
   .formColumns {
     grid-template-columns: 1fr;
   }
   .budgetBar {
-    inset-block-end: 9.75rem;
+    position: static;
+    margin-block: var(--space-6) 0;
+  }
+  .candidateForm {
+    margin-block-end: 0;
   }
 }
 @media (prefers-reduced-motion: no-preference) {
