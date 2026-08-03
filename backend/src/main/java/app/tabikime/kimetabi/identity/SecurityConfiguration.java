@@ -11,13 +11,17 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 
+import app.tabikime.kimetabi.internal.InternalOidcAuthenticationFilter;
+import app.tabikime.kimetabi.internal.InternalOidcVerifier;
+
 @Configuration(proxyBeanMethods = false)
 public class SecurityConfiguration {
 
     @Bean
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            Optional<FirebaseTokenVerifier> tokenVerifier
+            Optional<FirebaseTokenVerifier> tokenVerifier,
+            InternalOidcVerifier internalOidcVerifier
     ) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
@@ -25,8 +29,15 @@ public class SecurityConfiguration {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        .requestMatchers("/internal/tasks/**")
+                            .hasAuthority(InternalOidcAuthenticationFilter.TASK_AUTHORITY)
+                        .requestMatchers("/internal/outbox/**")
+                            .hasAuthority(InternalOidcAuthenticationFilter.SCHEDULER_AUTHORITY)
                         .requestMatchers("/actuator/**", "/api/**").authenticated()
                         .anyRequest().denyAll())
+                .addFilterBefore(
+                        new InternalOidcAuthenticationFilter(internalOidcVerifier),
+                        AnonymousAuthenticationFilter.class)
                 .addFilterBefore(
                         new BearerTokenAuthenticationFilter(tokenVerifier),
                         AnonymousAuthenticationFilter.class)

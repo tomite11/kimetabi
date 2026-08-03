@@ -10,7 +10,8 @@ public record UrlFetchProperties(
         Duration connectTimeout,
         Duration totalTimeout,
         int maxBodyBytes,
-        int maxRedirects
+        int maxRedirects,
+        int maxConcurrentPerHost
 ) {
 
     public static final Set<Integer> ALLOWED_PORTS = Set.of(80, 443);
@@ -22,8 +23,9 @@ public record UrlFetchProperties(
         if (totalTimeout == null || totalTimeout.compareTo(connectTimeout) < 0) {
             throw new IllegalArgumentException("totalTimeout must be at least connectTimeout");
         }
-        if (maxBodyBytes < 1 || maxRedirects < 0) {
-            throw new IllegalArgumentException("fetch limits must be non-negative");
+        if (maxBodyBytes < 1 || maxRedirects < 0 || maxConcurrentPerHost < 1) {
+            throw new IllegalArgumentException(
+                    "body bytes and host concurrency must be positive; redirects non-negative");
         }
     }
 }

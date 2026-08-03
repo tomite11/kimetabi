@@ -599,6 +599,7 @@ CREATE TABLE outbox_event (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     published_at TIMESTAMPTZ,
     attempts INTEGER NOT NULL DEFAULT 0,
+    last_outcome_code VARCHAR(50),
     CONSTRAINT ck_outbox_attempts CHECK (attempts >= 0)
 );
 

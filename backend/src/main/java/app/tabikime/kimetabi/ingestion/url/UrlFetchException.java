@@ -9,7 +9,9 @@ public class UrlFetchException extends Exception {
         TOO_MANY_REDIRECTS,
         RESPONSE_TOO_LARGE,
         TIMEOUT,
-        TRANSPORT_FAILURE
+        TRANSPORT_FAILURE,
+        TLS_VALIDATION_FAILURE,
+        INVALID_RESPONSE
     }
 
     private final Reason reason;

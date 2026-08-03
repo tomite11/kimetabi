@@ -79,6 +79,27 @@ class UrlAddressValidatorTest {
                 .isEqualTo("2606:4700:4700:0:0:0:0:1111");
     }
 
+    @Test
+    void acceptsExplicitAllowedPorts() throws Exception {
+        UrlAddressValidator validator = new UrlAddressValidator(PUBLIC_RESOLVER);
+
+        assertThat(validator.validate(URI.create("http://public.example:80/low")).port())
+                .isEqualTo(80);
+        assertThat(validator.validate(URI.create("https://public.example:443/high")).port())
+                .isEqualTo(443);
+    }
+
+    @Test
+    void rejectsIpv4MappedIpv6WhenEmbeddedAddressIsPrivate() {
+        UrlAddressValidator validator = new UrlAddressValidator(
+                hostname -> List.of(InetAddress.getByName("::ffff:127.0.0.1")));
+
+        assertThatThrownBy(() -> validator.validate(URI.create("https://mapped.example")))
+                .isInstanceOfSatisfying(
+                        UrlFetchException.class,
+                        exception -> assertThat(exception.reason()).isEqualTo(BLOCKED_ADDRESS));
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {
             "https://public.example:22/",

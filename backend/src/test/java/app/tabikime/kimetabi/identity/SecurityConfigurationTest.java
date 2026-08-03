@@ -2,6 +2,7 @@ package app.tabikime.kimetabi.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -15,6 +16,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
+
+import app.tabikime.kimetabi.internal.InternalOidcVerifier;
+import app.tabikime.kimetabi.internal.InternalCaller;
 
 @SpringBootTest(
         classes = {
@@ -96,6 +100,26 @@ class SecurityConfigurationTest {
         assertThat(token.uid()).isEqualTo("firebase-user-1");
     }
 
+    @Test
+    void internalEndpointsRequireTheirDedicatedOidcIdentity() throws Exception {
+        mockMvc.perform(post("/internal/tasks/test")
+                        .header("Authorization", "Bearer firebase-token"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/internal/tasks/test")
+                        .header("Authorization", "Bearer scheduler-token"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/internal/tasks/test")
+                        .header("Authorization", "Bearer tasks-token"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/internal/outbox/test")
+                        .header("Authorization", "Bearer tasks-token"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/internal/outbox/test")
+                        .header("Authorization", "Bearer scheduler-token"))
+                .andExpect(status().isNoContent());
+    }
+
     @Configuration(proxyBeanMethods = false)
     @EnableAutoConfiguration(exclude = DataSourceAutoConfiguration.class)
     static class TestConfiguration {
@@ -103,6 +127,23 @@ class SecurityConfigurationTest {
         @Bean
         FirebaseTokenVerifier firebaseTokenVerifier() {
             return verifier();
+        }
+
+        @Bean
+        InternalOidcVerifier internalOidcVerifier() {
+            return (token, caller) -> {
+                boolean valid = caller == InternalCaller.CLOUD_TASKS
+                        ? "tasks-token".equals(token) : "scheduler-token".equals(token);
+                if (!valid) {
+                    throw new app.tabikime.kimetabi.internal.InternalOidcVerificationException(
+                            "invalid");
+                }
+            };
+        }
+
+        @Bean
+        InternalTestController internalTestController() {
+            return new InternalTestController();
         }
 
         static FirebaseTokenVerifier verifier() {
@@ -114,5 +155,19 @@ class SecurityConfigurationTest {
             };
         }
 
+    }
+
+    @org.springframework.web.bind.annotation.RestController
+    static class InternalTestController {
+
+        @org.springframework.web.bind.annotation.PostMapping("/internal/tasks/test")
+        org.springframework.http.ResponseEntity<Void> task() {
+            return org.springframework.http.ResponseEntity.noContent().build();
+        }
+
+        @org.springframework.web.bind.annotation.PostMapping("/internal/outbox/test")
+        org.springframework.http.ResponseEntity<Void> scheduler() {
+            return org.springframework.http.ResponseEntity.noContent().build();
+        }
     }
 }

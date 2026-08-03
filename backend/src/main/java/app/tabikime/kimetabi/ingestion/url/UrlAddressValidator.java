@@ -29,7 +29,7 @@ public final class UrlAddressValidator {
 
     public ValidatedUrl validate(URI rawUri) throws UrlFetchException {
         URI uri = normalize(rawUri);
-        String hostname = uri.getHost().toLowerCase(Locale.ROOT);
+        String hostname = canonicalHostname(uri.getHost());
         if (BLOCKED_HOSTNAMES.contains(hostname)) {
             throw blocked();
         }
@@ -44,6 +44,14 @@ public final class UrlAddressValidator {
             throw blocked();
         }
         return new ValidatedUrl(uri, hostname, port, addresses);
+    }
+
+    private static String canonicalHostname(String hostname) {
+        String normalized = hostname.toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("[") && normalized.endsWith("]")) {
+            return normalized.substring(1, normalized.length() - 1);
+        }
+        return normalized;
     }
 
     private URI normalize(URI uri) throws UrlFetchException {
@@ -93,8 +101,8 @@ public final class UrlAddressValidator {
         if (CANONICAL_IPV4.matcher(hostname).matches()) {
             return List.of(parseLiteral(hostname));
         }
-        if (hostname.startsWith("[") && hostname.endsWith("]")) {
-            return List.of(parseLiteral(hostname.substring(1, hostname.length() - 1)));
+        if (hostname.contains(":")) {
+            return List.of(parseLiteral(hostname));
         }
         try {
             return resolver.resolve(hostname);

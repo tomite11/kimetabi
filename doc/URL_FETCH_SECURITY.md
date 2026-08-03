@@ -33,6 +33,7 @@ canonical dotted decimal、IPv6 literalは角括弧形式だけを受け付け�
 | response body上限 | 2,097,152 bytes |
 | redirect上限 | 5回 |
 | 許可port | 80, 443 |
+| 同一hostへの同時接続 | 2 |
 
 - 5秒deadlineはDNS、全redirect、header、body読込を含む単一deadlineとする。
 - bodyは展開後の読込byte数で制限し、`Content-Length` 超過は読込前、chunkedや
@@ -47,8 +48,11 @@ canonical dotted decimal、IPv6 literalは角括弧形式だけを受け付け�
 |---|---|---|
 | DNS失敗 | `FAILED_RETRYABLE` | 対象 |
 | 一時的`5xx` | `FAILED_RETRYABLE` | 対象 |
-| connect/total timeout | 要決定 | 要決定 |
-| `429` | 要決定 | 要決定 |
+| connect/total timeout | `FAILED_RETRYABLE` | 対象 |
+| `429` | `FAILED_RETRYABLE` | 対象 |
+| connection refused/reset、unexpected EOF | `FAILED_RETRYABLE` | 対象 |
+| TLS証明書・hostname検証失敗 | `FAILED_PERMANENT` | なし |
+| 不正HTTP response・展開不能な本文 | `FAILED_PERMANENT` | なし |
 | URL、scheme、port不正 | `FAILED_PERMANENT` | なし |
 | non-public address / rebinding | `FAILED_PERMANENT` | なし |
 | redirect超過 | `FAILED_PERMANENT` | なし |
@@ -56,5 +60,5 @@ canonical dotted decimal、IPv6 literalは角括弧形式だけを受け付け�
 | その他の恒久的`4xx` | `FAILED_PERMANENT` | なし |
 
 失敗時も候補を削除せず、利用者の手入力と明示的な再取得を許可する。
-timeoutと`429`の状態・自動再試行分類は `doc/SPEC.md` から判断できないため、
-M0-B3では独断で決めない。
+再試行は初回を含め最大3回とし、Cloud Tasksの1分から最大10分となる指数backoffを
+使用する。取得先の`Retry-After`はMVPでは再試行時刻に反映しない。

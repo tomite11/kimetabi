@@ -7,10 +7,13 @@ import static app.tabikime.kimetabi.ingestion.url.UrlFetchException.Reason.TIMEO
 import static app.tabikime.kimetabi.ingestion.url.UrlFetchException.Reason.TOO_MANY_REDIRECTS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
+import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -27,7 +30,8 @@ class SafeUrlFetcherTest {
 
     private static final int MAX_BODY_BYTES = 2 * 1024 * 1024;
     private static final UrlFetchProperties PROPERTIES =
-            new UrlFetchProperties(Duration.ofSeconds(3), Duration.ofSeconds(5), MAX_BODY_BYTES, 5);
+            new UrlFetchProperties(
+                    Duration.ofSeconds(3), Duration.ofSeconds(5), MAX_BODY_BYTES, 5, 2);
 
     @Test
     void validatesAndPinsEveryRedirectHop() throws Exception {
@@ -184,6 +188,65 @@ class SafeUrlFetcherTest {
                         UrlFetchException.class,
                         exception -> assertThat(exception.reason()).isEqualTo(TIMEOUT));
         assertThat(transport.calls).hasSize(1);
+    }
+
+    @Test
+    void classifiesTransportReadTimeoutAsTimeout() {
+        PinnedHttpTransport transport = (target, address, connectTimeout, operationTimeout) -> {
+            throw new SocketTimeoutException("fixture timeout");
+        };
+        SafeUrlFetcher fetcher = fetcher(publicResolver(), transport);
+
+        assertThatThrownBy(() -> fetcher.fetch(URI.create("https://public.example")))
+                .isInstanceOfSatisfying(
+                        UrlFetchException.class,
+                        exception -> assertThat(exception.reason()).isEqualTo(TIMEOUT));
+    }
+
+    @Test
+    void classifiesInvalidHttpAndTemporaryIoSeparately() {
+        SafeUrlFetcher invalid = fetcher(publicResolver(),
+                (target, address, connectTimeout, operationTimeout) -> {
+                    throw new InvalidHttpResponseException("fixture");
+                });
+        SafeUrlFetcher temporary = fetcher(publicResolver(),
+                (target, address, connectTimeout, operationTimeout) -> {
+                    throw new IOException("connection reset fixture");
+                });
+
+        assertThatThrownBy(() -> invalid.fetch(URI.create("https://public.example")))
+                .isInstanceOfSatisfying(UrlFetchException.class,
+                        exception -> assertThat(exception.reason())
+                                .isEqualTo(UrlFetchException.Reason.INVALID_RESPONSE));
+        assertThatThrownBy(() -> temporary.fetch(URI.create("https://public.example")))
+                .isInstanceOfSatisfying(UrlFetchException.class,
+                        exception -> assertThat(exception.reason())
+                                .isEqualTo(UrlFetchException.Reason.TRANSPORT_FAILURE));
+    }
+
+    @Test
+    void includesDnsResolutionInTotalDeadline() {
+        UrlFetchProperties shortDeadline = new UrlFetchProperties(
+                Duration.ofMillis(10), Duration.ofMillis(20), MAX_BODY_BYTES, 5, 2);
+        AddressResolver slowResolver = hostname -> {
+            try {
+                Thread.sleep(Duration.ofSeconds(1));
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new java.net.UnknownHostException(hostname);
+            }
+            return List.of(InetAddress.getByName("93.184.216.34"));
+        };
+        SafeUrlFetcher fetcher = new SafeUrlFetcher(
+                new UrlAddressValidator(slowResolver),
+                new FakeTransport(response(200, "late")),
+                shortDeadline);
+
+        assertTimeoutPreemptively(Duration.ofMillis(500), () ->
+                assertThatThrownBy(() -> fetcher.fetch(URI.create("https://slow.example")))
+                        .isInstanceOfSatisfying(
+                                UrlFetchException.class,
+                                exception -> assertThat(exception.reason()).isEqualTo(TIMEOUT)));
     }
 
     private static SafeUrlFetcher fetcher(

@@ -1702,6 +1702,9 @@
           "204": {
             "description": "Processed or already processed idempotently"
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -1710,6 +1713,9 @@
           },
           "422": {
             "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "description": "Retryable failure or an unresolved retry policy"
           }
         }
       }
@@ -1754,6 +1760,9 @@
           },
           "422": {
             "$ref": "#/components/responses/ValidationFailed"
+          },
+          "500": {
+            "description": "One or more events remain unpublished for recovery"
           }
         }
       }
@@ -3819,12 +3828,18 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "eventId"
+          "eventId",
+          "candidateId"
         ],
         "properties": {
           "eventId": {
             "type": "string",
             "format": "uuid"
+          },
+          "candidateId": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
           }
         }
       },

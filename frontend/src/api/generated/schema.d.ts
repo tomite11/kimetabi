@@ -952,6 +952,8 @@ export interface components {
         InternalTaskRequest: {
             /** Format: uuid */
             eventId: string;
+            /** Format: int64 */
+            candidateId: number;
         };
         OutboxDispatchRequest: {
             /** @default 50 */
@@ -2223,9 +2225,17 @@ export interface operations {
                 };
                 content?: never;
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             422: components["responses"]["ValidationFailed"];
+            /** @description Retryable failure or an unresolved retry policy */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     dispatchPendingOutbox: {
@@ -2253,6 +2263,13 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             422: components["responses"]["ValidationFailed"];
+            /** @description One or more events remain unpublished for recovery */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
 }

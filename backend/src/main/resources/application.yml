@@ -27,8 +27,23 @@ server:
   shutdown: graceful
 
 kimetabi:
+  cloud-tasks:
+    project-id: ${GOOGLE_CLOUD_PROJECT:}
+    location: ${CLOUD_TASKS_LOCATION:asia-northeast1}
+    queue: ${CLOUD_TASKS_METADATA_QUEUE:}
+    handler-base-url: ${BACKEND_BASE_URL:}
+    service-account-email: ${TASKS_SERVICE_ACCOUNT_EMAIL:}
+    audience: ${TASKS_OIDC_AUDIENCE:}
+    request-timeout: ${CLOUD_TASKS_REQUEST_TIMEOUT:10s}
   firebase:
     project-id: ${FIREBASE_PROJECT_ID:}
+  internal-oidc:
+    tasks:
+      audience: ${TASKS_OIDC_AUDIENCE:}
+      service-account-email: ${TASKS_SERVICE_ACCOUNT_EMAIL:}
+    scheduler:
+      audience: ${SCHEDULER_OIDC_AUDIENCE:}
+      service-account-email: ${SCHEDULER_SERVICE_ACCOUNT_EMAIL:}
   proxy:
     trust-google-forwarded-for: ${TRUST_GOOGLE_FORWARDED_FOR:false}
   secrets:
@@ -38,3 +53,4 @@ kimetabi:
     total-timeout: 5s
     max-body-bytes: 2097152
     max-redirects: 5
+    max-concurrent-per-host: 2

@@ -392,7 +392,8 @@ CREATE TABLE outbox_event (
   payload        JSONB NOT NULL,
   created_at     TIMESTAMPTZ NOT NULL,
   published_at   TIMESTAMPTZ,
-  attempts       INT NOT NULL DEFAULT 0
+  attempts       INT NOT NULL DEFAULT 0,
+  last_outcome_code VARCHAR(50)
 );
 ```
 
@@ -661,12 +662,16 @@ Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
 - タスクpayloadは `candidateId` とし、タスク名にOutbox IDを使って重複登録を抑止する
 - タスクは専用サービスアカウントのOIDCトークンでCloud Runの内部HTTPハンドラーを呼び、一般ユーザーからのアクセスを拒否する
 - 接続タイムアウト3秒、処理全体5秒、最大本文2MB、リダイレクト最大5回
-- DNS失敗や一時的な5xxだけを1分後・10分後の最大2回再試行する。URL不正、SSRF拒否、恒久的な4xxは再試行しない
+- DNS失敗、timeout、接続拒否・reset等の一時的transport failure、`429`、一時的な
+  `5xx`は、1分から始まり最大10分となる指数backoffで最大2回再試行する。TLS証明書・
+  hostname検証失敗、不正HTTP response、URL不正、SSRF拒否、恒久的な4xxは再試行しない
 - 失敗しても候補を削除せず、手入力と「メタデータを再取得」を提供する
 - 遅れて取得したメタデータでユーザー編集を上書きしない。優先順位は `ユーザー入力 > 取得メタデータ > 空欄`
 - 候補作成APIは `Idempotency-Key` を必須とし、通信再送で候補を重複作成しない
 
-JobRunrと `@Async` は使用せず、URL取り込みとOCRをCloud Tasksへ統一する。再試行回数・バックオフ・同時実行数・ホストへの流量制限はキュー設定で管理する。
+JobRunrと `@Async` は使用せず、URL取り込みとOCRをCloud Tasksへ統一する。再試行回数・
+backoff・全体の同時実行数はqueue設定で管理する。Cloud Tasksからは取得先hostを識別
+できないため、外部host単位の同時接続はfetcherで2接続に制限する。
 
 #### 6.3.5 メタデータ抽出実装（Spring Boot）
 

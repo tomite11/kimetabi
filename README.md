@@ -49,6 +49,31 @@ Cloud Runで招待・復旧のIP単位レート制限に転送元IPを使用す�
 `TRUST_GOOGLE_FORWARDED_FOR=true`を設定します。ローカル環境やGoogle proxyを
 経由しない環境では設定せず、接続元のremote addressを使用してください。
 
+Cloud Tasksによる候補メタデータ取得を有効にする環境では、次を外部設定します。
+TasksとSchedulerには別のservice accountとaudienceを指定してください。未設定時は
+内部APIをfail closedで拒否し、Outboxは未配信のまま保持します。
+
+```shell
+GOOGLE_CLOUD_PROJECT=your-project
+CLOUD_TASKS_LOCATION=asia-northeast1
+CLOUD_TASKS_METADATA_QUEUE=metadata
+BACKEND_BASE_URL=https://api.example.com
+TASKS_SERVICE_ACCOUNT_EMAIL=kimetabi-tasks-invoker@your-project.iam.gserviceaccount.com
+TASKS_OIDC_AUDIENCE=https://api.example.com/internal/tasks
+SCHEDULER_SERVICE_ACCOUNT_EMAIL=kimetabi-scheduler-invoker@your-project.iam.gserviceaccount.com
+SCHEDULER_OIDC_AUDIENCE=https://api.example.com/internal/outbox
+```
+
+dev、staging、productionは別projectとし、上記service account IDを各projectで
+共通利用します。Cloud RunにはTasks用とScheduler用のaudienceをcustom audienceとして
+登録します。metadata queueは初回を含む最大3回、`minBackoff=60s`、
+`maxBackoff=600s`の指数backoffで構成します。正確な「1分後・10分後」ではなく、
+Cloud Tasks標準のbackoffを使用します。
+
+Cloud Tasksのpayloadには`eventId`と`candidateId`だけを入れ、raw URLはDBから取得します。
+`/internal/tasks/**`と`/internal/outbox/**`は、それぞれ対応するOIDC identity以外を
+拒否します。
+
 設定は環境変数に加え、Cloud Runでマウントする
 `/var/run/secrets/kimetabi/` のconfig treeから外部注入できます。
 `/actuator/health` は未認証で公開し、その他のActuator endpointは認証を要求します。

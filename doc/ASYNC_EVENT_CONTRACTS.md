@@ -37,11 +37,11 @@ WebSocket、Cloud Storageの責務と、少なくとも1回配送での回復方
 - task名はOutbox event IDから決定し、Cloud Tasksへの重複登録を抑える。
 - handlerもevent IDとcandidate状態で冪等にする。既にterminal状態なら成功応答し、
   metadataを再適用しない。
-- 仕様で自動再試行対象と確定しているDNS失敗と一時的`5xx`だけを
-  `FAILED_RETRYABLE` とし、1分後・10分後の最大2回再試行する。
-- URL形式、SSRF、port、redirect上限、本文上限、恒久的`4xx`は
-  `FAILED_PERMANENT` とする。timeoutと`429`の自動再試行分類は仕様から判断できず、
-  M0では決定しない。
+- DNS失敗、timeout、接続拒否・reset等の一時的transport failure、`429`、一時的
+  `5xx`を `FAILED_RETRYABLE` とし、1分から最大10分となる指数backoffで最大2回
+  再試行する（初回を含め最大3回）。
+- URL形式、SSRF、port、redirect上限、本文上限、恒久的`4xx`、TLS証明書・hostname
+  検証失敗、不正HTTP responseは `FAILED_PERMANENT` とする。
 - 利用者の明示的な再取得は新しいevent IDで別操作として記録する。
 - metadataはユーザーが編集したtitle/imageを上書きしない。
 
