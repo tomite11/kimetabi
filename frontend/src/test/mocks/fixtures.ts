@@ -21,7 +21,11 @@ export const tokyoTripSnapshot = {
     revision: 1,
     version: 1,
   },
-  members: [{ id: 7, name: "わたし", role: "OWNER", status: "ACTIVE" }],
+  members: [
+    { id: 7, name: "わたし", role: "OWNER", status: "ACTIVE" },
+    { id: 8, name: "ユイ", role: "MEMBER", status: "ACTIVE" },
+    { id: 9, name: "ケン", role: "MEMBER", status: "ACTIVE" },
+  ],
   slots: [
     {
       id: 101,

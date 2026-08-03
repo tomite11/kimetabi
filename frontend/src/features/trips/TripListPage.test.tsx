@@ -7,8 +7,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { server } from "../../test/mocks/server";
 import { apiBaseUrl, apiClient } from "../../api/client";
+import { TripHomePage } from "./TripHomePage";
 import { TripListPage } from "./TripListPage";
-import { TripStartPage } from "./TripStartPage";
+import { TripShell } from "./TripShell";
 
 afterEach(cleanup);
 
@@ -17,7 +18,9 @@ function renderTripRoutes() {
     <MemoryRouter>
       <Routes>
         <Route path="/" element={<TripListPage />} />
-        <Route path="/t/:tripId" element={<TripStartPage />} />
+        <Route path="/t/:tripId" element={<TripShell />}>
+          <Route index element={<TripHomePage />} />
+        </Route>
       </Routes>
     </MemoryRouter>,
   );

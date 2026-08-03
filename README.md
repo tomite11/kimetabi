@@ -80,10 +80,17 @@ npm run dev
 OpenAPI型は `openapi/openapi.json` から生成します。型検査とbuild時にも自動生成
 されます。
 
-APIクライアントはFirebase ID tokenを非同期に取得する
-`AccessTokenProvider`を受け取り、認証が必要なリクエストへBearer tokenを付与します。
-M1の疎通確認には `GET /api/session` を使用し、検証済みPrincipalのUIDだけを返します。
-Firebase SDKとの接続はM2で行います。
+APIクライアントはFirebase Authenticationの匿名ユーザーを自動作成または復元し、
+取得したID tokenを認証が必要なリクエストへBearer tokenとして付与します。
+ローカルで実APIへ接続する場合は次のVite環境変数を設定してください。
+`VITE_ENABLE_MSW=true` のUI開発ではFirebaseへ接続せず、MSW用tokenを使用します。
+
+```shell
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_APP_ID=...
+```
 
 ```shell
 cd frontend

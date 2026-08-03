@@ -7,6 +7,12 @@ export type AccessTokenProvider = () => Promise<string | undefined>;
 export const apiBaseUrl =
   import.meta.env.VITE_API_BASE_URL || globalThis.location?.origin || "";
 
+let currentAccessTokenProvider: AccessTokenProvider | undefined;
+
+export function setAccessTokenProvider(provider?: AccessTokenProvider) {
+  currentAccessTokenProvider = provider;
+}
+
 export function createApiClient(
   accessTokenProvider?: AccessTokenProvider,
   baseUrl = apiBaseUrl,
@@ -31,4 +37,6 @@ export function createApiClient(
   return client;
 }
 
-export const apiClient = createApiClient();
+export const apiClient = createApiClient(async () =>
+  currentAccessTokenProvider ? currentAccessTokenProvider() : undefined,
+);

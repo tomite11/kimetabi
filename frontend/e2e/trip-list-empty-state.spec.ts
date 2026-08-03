@@ -69,7 +69,9 @@ test("旅行一覧の空状態から旅行を作成できる", async ({ page }, 
   await page.getByRole("button", { name: "この内容で旅行を作る" }).click();
   await expect(page).toHaveURL(/\/t\/42$/);
   await expect(page.getByRole("heading", { name: "東京の旅" })).toBeVisible();
-  await expect(page.getByText("3人")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "メンバー 3人" }),
+  ).toBeVisible();
 
   expect(consoleErrors).toEqual([]);
 });

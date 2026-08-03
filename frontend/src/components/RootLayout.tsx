@@ -1,4 +1,4 @@
-import { Outlet } from "react-router";
+import { Outlet, ScrollRestoration } from "react-router";
 
 import styles from "./RootLayout.module.css";
 
@@ -20,6 +20,7 @@ export function RootLayout() {
       <main className={styles.main} id="main-content" tabIndex={-1}>
         <Outlet />
       </main>
+      <ScrollRestoration />
     </div>
   );
 }
