@@ -1,6 +1,7 @@
 package app.tabikime.kimetabi.ingestion.url;
 
 import static app.tabikime.kimetabi.ingestion.url.UrlFetchException.Reason.BLOCKED_ADDRESS;
+import static app.tabikime.kimetabi.ingestion.url.UrlFetchException.Reason.INVALID_URL;
 import static app.tabikime.kimetabi.ingestion.url.UrlFetchException.Reason.RESPONSE_TOO_LARGE;
 import static app.tabikime.kimetabi.ingestion.url.UrlFetchException.Reason.TIMEOUT;
 import static app.tabikime.kimetabi.ingestion.url.UrlFetchException.Reason.TOO_MANY_REDIRECTS;
@@ -69,6 +70,37 @@ class SafeUrlFetcherTest {
                 .isInstanceOfSatisfying(
                         UrlFetchException.class,
                         exception -> assertThat(exception.reason()).isEqualTo(BLOCKED_ADDRESS));
+        assertThat(transport.calls).hasSize(1);
+    }
+
+    @Test
+    void rejectsRedirectToPrivateIpv6AddressBeforeSecondConnection() throws Exception {
+        AddressResolver resolver = hostname -> switch (hostname) {
+            case "start.example" -> List.of(InetAddress.getByName("93.184.216.34"));
+            case "internal.example" -> List.of(InetAddress.getByName("fd00::1"));
+            default -> throw new java.net.UnknownHostException(hostname);
+        };
+        FakeTransport transport =
+                new FakeTransport(redirect(302, "https://internal.example/admin"));
+        SafeUrlFetcher fetcher = fetcher(resolver, transport);
+
+        assertThatThrownBy(() -> fetcher.fetch(URI.create("https://start.example")))
+                .isInstanceOfSatisfying(
+                        UrlFetchException.class,
+                        exception -> assertThat(exception.reason()).isEqualTo(BLOCKED_ADDRESS));
+        assertThat(transport.calls).hasSize(1);
+    }
+
+    @Test
+    void rejectsRedirectToDisallowedPortBeforeSecondConnection() throws Exception {
+        FakeTransport transport =
+                new FakeTransport(redirect(302, "https://public.example:8443/admin"));
+        SafeUrlFetcher fetcher = fetcher(publicResolver(), transport);
+
+        assertThatThrownBy(() -> fetcher.fetch(URI.create("https://public.example")))
+                .isInstanceOfSatisfying(
+                        UrlFetchException.class,
+                        exception -> assertThat(exception.reason()).isEqualTo(INVALID_URL));
         assertThat(transport.calls).hasSize(1);
     }
 

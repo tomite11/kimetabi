@@ -3010,7 +3010,8 @@
           "visibility",
           "yesCount",
           "anyCount",
-          "noCount"
+          "noCount",
+          "unvotedMemberIds"
         ],
         "properties": {
           "visibility": {
@@ -3027,6 +3028,14 @@
           "noCount": {
             "type": "integer",
             "minimum": 0
+          },
+          "unvotedMemberIds": {
+            "description": "ACTIVE members who have not voted. Present for both NAMED and ANONYMOUS visibility.",
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/Id"
+            }
           },
           "myVote": {
             "oneOf": [

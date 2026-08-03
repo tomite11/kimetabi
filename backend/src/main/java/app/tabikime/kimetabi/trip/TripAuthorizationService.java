@@ -60,6 +60,14 @@ public class TripAuthorizationService {
         return member;
     }
 
+    public long requireMemberId(
+            String firebaseUid,
+            long tripId,
+            TripPermission permission
+    ) {
+        return require(firebaseUid, tripId, permission).id();
+    }
+
     public TripRepository.StoredMember requireMemberResource(
             String firebaseUid,
             long tripId,

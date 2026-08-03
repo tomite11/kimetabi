@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -84,7 +85,7 @@ public class CandidateController {
             @Valid @RequestBody CreateCandidateRequest request
     ) {
         CandidateResource candidate = service.create(
-                principal.firebaseUid(), tripId, slotId, request);
+                principal.firebaseUid(), tripId, slotId, idempotencyKey, request);
         return ResponseEntity.created(URI.create(
                         "/api/trips/" + tripId + "/candidates/" + candidate.id()))
                 .body(candidate);
@@ -98,5 +99,36 @@ public class CandidateController {
             @Valid @RequestBody UpdateCandidateRequest request
     ) {
         return service.update(principal.firebaseUid(), tripId, candidateId, request);
+    }
+
+    @PutMapping("/candidates/{candidateId}/vote")
+    VoteView putVote(
+            @AuthenticationPrincipal AppPrincipal principal,
+            @PathVariable @Min(1) long tripId,
+            @PathVariable @Min(1) long candidateId,
+            @Valid @RequestBody PutVoteRequest request
+    ) {
+        return service.putVote(principal.firebaseUid(), tripId, candidateId, request);
+    }
+
+    @PutMapping("/slots/{slotId}/adoption")
+    AdoptionResult adoptCandidate(
+            @AuthenticationPrincipal AppPrincipal principal,
+            @PathVariable @Min(1) long tripId,
+            @PathVariable @Min(1) long slotId,
+            @Valid @RequestBody AdoptCandidateRequest request
+    ) {
+        return service.adopt(
+                principal.firebaseUid(), tripId, slotId, request);
+    }
+
+    @DeleteMapping("/slots/{slotId}/adoption")
+    SlotResource clearAdoption(
+            @AuthenticationPrincipal AppPrincipal principal,
+            @PathVariable @Min(1) long tripId,
+            @PathVariable @Min(1) long slotId,
+            @RequestParam @Min(0) long version
+    ) {
+        return service.clearAdoption(principal.firebaseUid(), tripId, slotId, version);
     }
 }

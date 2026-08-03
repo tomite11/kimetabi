@@ -29,6 +29,7 @@ import app.tabikime.kimetabi.trip.TripValidationException;
 import app.tabikime.kimetabi.trip.TripVersionConflictException;
 import app.tabikime.kimetabi.candidate.CandidateVersionConflictException;
 import app.tabikime.kimetabi.candidate.SlotVersionConflictException;
+import app.tabikime.kimetabi.candidate.VoteVersionConflictException;
 
 @RestControllerAdvice
 public class GlobalApiExceptionHandler {
@@ -306,6 +307,24 @@ public class GlobalApiExceptionHandler {
                 "競合が発生しました",
                 ApiErrorCode.VERSION_CONFLICT,
                 "枠が別の操作で更新されています。",
+                request
+        );
+        problem.setProperty("currentVersion", exception.current().version());
+        problem.setProperty("current", exception.current());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(VoteVersionConflictException.class)
+    ResponseEntity<ProblemDetail> handleVoteVersionConflict(
+            VoteVersionConflictException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = createProblem(
+                HttpStatus.CONFLICT,
+                CONFLICT_TYPE,
+                "競合が発生しました",
+                ApiErrorCode.VERSION_CONFLICT,
+                "投票が別の操作で更新されています。",
                 request
         );
         problem.setProperty("currentVersion", exception.current().version());

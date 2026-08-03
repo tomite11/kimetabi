@@ -8,6 +8,6 @@ import app.tabikime.kimetabi.trip.SlotResource;
 public record SlotDetail(
         SlotResource slot,
         List<CandidateResource> candidates,
-        Map<String, Object> votesByCandidate
+        Map<String, VoteView> votesByCandidate
 ) {
 }

@@ -2,8 +2,10 @@ package app.tabikime.kimetabi.candidate;
 
 import java.net.URI;
 import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +15,9 @@ import app.tabikime.kimetabi.trip.TripAuthorizationService;
 import app.tabikime.kimetabi.trip.TripNotFoundException;
 import app.tabikime.kimetabi.trip.TripPermission;
 import app.tabikime.kimetabi.trip.TripValidationException;
+import app.tabikime.kimetabi.trip.VoteVisibility;
+import app.tabikime.kimetabi.support.event.OutboxEventWriter;
+import app.tabikime.kimetabi.support.idempotency.IdempotencyStore;
 
 @Service
 public class CandidateService {
@@ -20,25 +25,36 @@ public class CandidateService {
     private final CandidateRepository repository;
     private final TripAuthorizationService authorization;
     private final SlotDeadlineCalculator deadlineCalculator;
+    private final IdempotencyStore idempotencyStore;
+    private final OutboxEventWriter eventWriter;
 
     CandidateService(
             CandidateRepository repository,
             TripAuthorizationService authorization,
-            SlotDeadlineCalculator deadlineCalculator
+            SlotDeadlineCalculator deadlineCalculator,
+            IdempotencyStore idempotencyStore,
+            OutboxEventWriter eventWriter
     ) {
         this.repository = repository;
         this.authorization = authorization;
         this.deadlineCalculator = deadlineCalculator;
+        this.idempotencyStore = idempotencyStore;
+        this.eventWriter = eventWriter;
     }
 
     @Transactional(readOnly = true)
     public SlotDetail getSlot(String firebaseUid, long tripId, long slotId) {
-        authorization.requireSlotResource(
+        long memberId = authorization.requireSlotResourceMemberId(
                 firebaseUid, tripId, TripPermission.VIEW_TRIP, slotId);
+        List<CandidateResource> candidates = repository.list(tripId, slotId);
+        Map<String, VoteView> votes = new LinkedHashMap<>();
+        for (CandidateResource candidate : candidates) {
+            votes.put(Long.toString(candidate.id()), voteView(tripId, candidate.id(), memberId));
+        }
         return new SlotDetail(
                 repository.findSlot(tripId, slotId).orElseThrow(TripNotFoundException::new),
-                repository.list(tripId, slotId),
-                Map.of());
+                candidates,
+                Map.copyOf(votes));
     }
 
     @Transactional
@@ -123,6 +139,7 @@ public class CandidateService {
             String firebaseUid,
             long tripId,
             long slotId,
+            UUID idempotencyKey,
             CreateCandidateRequest request
     ) {
         long memberId = authorization.requireSlotResourceMemberId(
@@ -130,10 +147,30 @@ public class CandidateService {
         CreateCandidateRequest normalized = normalize(request);
         validate(normalized.title(), normalized.url(), normalized.tags(),
                 normalized.estAmount(), normalized.estBasis());
+        var idempotencyRequest = new CandidateCreateIdempotencyRequest(
+                tripId, slotId, normalized);
+        String requestHash = idempotencyStore.hash(idempotencyRequest);
+        var replay = idempotencyStore.claimOrReplay(
+                firebaseUid, "CREATE_CANDIDATE", idempotencyKey, requestHash);
+        if (replay != null) {
+            return idempotencyStore.read(replay, CandidateResource.class);
+        }
         long candidateId = repository.insert(
                 tripId, slotId, memberId, normalized);
         repository.replaceTags(tripId, candidateId, tags(normalized.tags()));
-        return repository.find(tripId, candidateId).orElseThrow();
+        CandidateResource candidate = repository.find(tripId, candidateId).orElseThrow();
+        long revision = eventWriter.nextRevision(tripId);
+        eventWriter.write(
+                tripId, revision, "CANDIDATE_CREATED", "candidate",
+                candidate.id(), candidate.version());
+        idempotencyStore.complete(
+                firebaseUid,
+                "CREATE_CANDIDATE",
+                idempotencyKey,
+                "CANDIDATE",
+                candidate.id(),
+                candidate);
+        return candidate;
     }
 
     @Transactional
@@ -160,6 +197,15 @@ public class CandidateService {
         EstimateBasis basis = request.estBasisPresent() ? request.estBasis() : current.estBasis();
         List<String> updatedTags = request.tagsPresent() ? tags(request.tags()) : current.tags();
         validate(title, url, updatedTags, amount, basis);
+        if (request.statusPresent() && request.status() == CandidateStatus.REJECTED) {
+            var slot = repository.lockSlot(tripId, current.slotId())
+                    .orElseThrow(TripNotFoundException::new);
+            if (slot.adoptedCandidateId() != null
+                    && slot.adoptedCandidateId() == candidateId) {
+                throw new TripValidationException(
+                        "status", "採択中の候補は採択を解除してから却下してください。");
+            }
+        }
         if (request.titlePresent()) request.setTitle(title);
         if (request.urlPresent()) request.setUrl(url);
         if (request.tagsPresent()) request.setTags(updatedTags);
@@ -171,7 +217,128 @@ public class CandidateService {
         if (request.tagsPresent()) {
             repository.replaceTags(tripId, candidateId, request.tags());
         }
-        return repository.find(tripId, candidateId).orElseThrow();
+        CandidateResource candidate = repository.find(tripId, candidateId).orElseThrow();
+        long revision = eventWriter.nextRevision(tripId);
+        eventWriter.write(
+                tripId, revision, "CANDIDATE_UPDATED", "candidate",
+                candidate.id(), candidate.version());
+        return candidate;
+    }
+
+    @Transactional
+    public VoteView putVote(
+            String firebaseUid,
+            long tripId,
+            long candidateId,
+            PutVoteRequest request
+    ) {
+        long memberId = authorization.requireMemberId(
+                firebaseUid, tripId, TripPermission.VOTE);
+        repository.find(tripId, candidateId).orElseThrow(TripNotFoundException::new);
+        String reason = trimToNull(request.reason());
+        if (request.choice() == VoteChoice.NO && reason == null) {
+            throw new TripValidationException("reason", "NOには理由を指定してください。");
+        }
+
+        boolean updated;
+        if (request.version() == null) {
+            updated = repository.insertVote(
+                    tripId, candidateId, memberId, request.choice(), reason);
+        } else {
+            updated = repository.updateVote(
+                    tripId,
+                    candidateId,
+                    memberId,
+                    request.choice(),
+                    reason,
+                    request.version());
+        }
+        if (!updated) {
+            VoteResource current = repository.findVote(tripId, candidateId, memberId)
+                    .orElseThrow(() -> new TripValidationException(
+                            "version", "更新対象の投票がありません。"));
+            throw new VoteVersionConflictException(current);
+        }
+        VoteView view = voteView(tripId, candidateId, memberId);
+        long revision = eventWriter.nextRevision(tripId);
+        eventWriter.write(
+                tripId, revision, "CANDIDATE_VOTE_CHANGED", "candidate",
+                candidateId, null);
+        return view;
+    }
+
+    @Transactional
+    public AdoptionResult adopt(
+            String firebaseUid,
+            long tripId,
+            long slotId,
+            AdoptCandidateRequest request
+    ) {
+        authorization.requireSlotResource(
+                firebaseUid, tripId, TripPermission.ADOPT_CANDIDATE, slotId);
+        var slot = repository.lockSlot(tripId, slotId)
+                .orElseThrow(TripNotFoundException::new);
+        if (slot.version() != request.version()) {
+            throw new SlotVersionConflictException(slot);
+        }
+        CandidateResource candidate = repository.findForShare(tripId, request.candidateId())
+                .orElseThrow(TripNotFoundException::new);
+        if (candidate.slotId() != slotId) {
+            throw new TripValidationException(
+                    "candidateId", "同じ枠に属する候補を指定してください。");
+        }
+        if (candidate.status() == CandidateStatus.REJECTED) {
+            throw new TripValidationException(
+                    "candidateId", "却下された候補は採択できません。");
+        }
+        if (!repository.updateAdoption(
+                tripId, slotId, candidate.id(), request.version())) {
+            throw new SlotVersionConflictException(
+                    repository.findSlot(tripId, slotId).orElseThrow());
+        }
+        PlanItemResource planItem = repository.upsertPlanItem(
+                tripId,
+                slotId,
+                candidate.id(),
+                candidate.title() == null ? "名称未設定" : candidate.title(),
+                repository.tripTimezone(tripId),
+                candidate.url());
+        var updatedSlot = repository.findSlot(tripId, slotId).orElseThrow();
+        long revision = eventWriter.nextRevision(tripId);
+        eventWriter.write(
+                tripId, revision, "SLOT_ADOPTION_CHANGED", "slot",
+                slotId, updatedSlot.version());
+        return new AdoptionResult(updatedSlot, planItem);
+    }
+
+    @Transactional
+    public app.tabikime.kimetabi.trip.SlotResource clearAdoption(
+            String firebaseUid,
+            long tripId,
+            long slotId,
+            long version
+    ) {
+        authorization.requireSlotResource(
+                firebaseUid, tripId, TripPermission.ADOPT_CANDIDATE, slotId);
+        var slot = repository.lockSlot(tripId, slotId)
+                .orElseThrow(TripNotFoundException::new);
+        if (slot.version() != version) {
+            throw new SlotVersionConflictException(slot);
+        }
+        if (slot.adoptedCandidateId() == null) {
+            return slot;
+        }
+        repository.deletePlanItem(tripId, slotId);
+        if (!repository.clearAdoption(tripId, slotId, version)) {
+            throw new SlotVersionConflictException(
+                    repository.findSlot(tripId, slotId).orElseThrow());
+        }
+        var updatedSlot = repository.findSlot(tripId, slotId).orElseThrow();
+        long revision = eventWriter.nextRevision(tripId);
+        eventWriter.write(
+                tripId, revision, "SLOT_ADOPTION_CHANGED", "slot",
+                slotId, updatedSlot.version());
+        return updatedSlot;
     }
 
     private CreateCandidateRequest normalize(CreateCandidateRequest request) {
@@ -266,6 +433,33 @@ public class CandidateService {
                 || request.estPerPersonPresent() || request.statusPresent();
     }
 
+    private VoteView voteView(long tripId, long candidateId, long memberId) {
+        VoteVisibility visibility = repository.voteVisibility(tripId);
+        List<VoteResource> votes = repository.listActiveVotes(tripId, candidateId);
+        VoteResource myVote = votes.stream()
+                .filter(vote -> vote.memberId() == memberId)
+                .findFirst()
+                .orElse(null);
+        int yesCount = 0;
+        int anyCount = 0;
+        int noCount = 0;
+        for (VoteResource vote : votes) {
+            switch (vote.choice()) {
+                case YES -> yesCount++;
+                case ANY -> anyCount++;
+                case NO -> noCount++;
+            }
+        }
+        return new VoteView(
+                visibility,
+                yesCount,
+                anyCount,
+                noCount,
+                repository.listUnvotedActiveMemberIds(tripId, candidateId),
+                myVote,
+                visibility == VoteVisibility.NAMED ? votes : null);
+    }
+
     private CreateSlotRequest withDefaultDeadline(long tripId, CreateSlotRequest request) {
         if (request.deadline() != null) {
             return request;
@@ -283,5 +477,12 @@ public class CandidateService {
                         deadline,
                         request.estPerPerson()))
                 .orElse(request);
+    }
+
+    private record CandidateCreateIdempotencyRequest(
+            long tripId,
+            long slotId,
+            CreateCandidateRequest candidate
+    ) {
     }
 }

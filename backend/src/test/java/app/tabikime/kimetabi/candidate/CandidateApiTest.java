@@ -7,11 +7,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,6 +53,7 @@ class CandidateApiTest {
 
     @Autowired
     private JdbcClient jdbcClient;
+
 
     @BeforeEach
     void setUp() {
@@ -168,6 +173,11 @@ class CandidateApiTest {
                 .andExpect(jsonPath("$.code").value("VERSION_CONFLICT"))
                 .andExpect(jsonPath("$.currentVersion").value(1))
                 .andExpect(jsonPath("$.current.title").value("更新後"));
+
+        assertThat(jdbcClient.sql("SELECT revision FROM trip WHERE id = 1")
+                .query(Long.class).single()).isEqualTo(2);
+        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM outbox_event")
+                .query(Long.class).single()).isEqualTo(2);
     }
 
     @Test
@@ -323,6 +333,382 @@ class CandidateApiTest {
                 .andExpect(jsonPath("$.currentVersion").value(0));
     }
 
+    @Test
+    void activeMemberVotesAndStaleVoteReturnsCurrentValue() throws Exception {
+        createCandidateDirectly();
+
+        mockMvc.perform(put("/api/trips/1/candidates/1/vote")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"choice\":\"YES\"}")
+                        .with(principal("owner-a")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.visibility").value("NAMED"))
+                .andExpect(jsonPath("$.yesCount").value(1))
+                .andExpect(jsonPath("$.myVote.choice").value("YES"))
+                .andExpect(jsonPath("$.myVote.version").value(0))
+                .andExpect(jsonPath("$.namedVotes[0].memberId").value(1));
+
+        mockMvc.perform(put("/api/trips/1/candidates/1/vote")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"choice\":\"NO\",\"reason\":\"予算超過\",\"version\":0}")
+                        .with(principal("owner-a")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.noCount").value(1))
+                .andExpect(jsonPath("$.myVote.reason").value("予算超過"))
+                .andExpect(jsonPath("$.myVote.version").value(1));
+
+        mockMvc.perform(put("/api/trips/1/candidates/1/vote")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"choice\":\"ANY\",\"version\":0}")
+                        .with(principal("owner-a")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("VERSION_CONFLICT"))
+                .andExpect(jsonPath("$.currentVersion").value(1))
+                .andExpect(jsonPath("$.current.choice").value("NO"));
+    }
+
+    @Test
+    void noVoteRequiresReasonAndAnonymousVoteHidesVoterFromEveryone() throws Exception {
+        createCandidateDirectly();
+        jdbcClient.sql("""
+                        INSERT INTO trip_member (
+                            trip_id, firebase_uid, name, role, status
+                        ) VALUES (1, 'member', 'Member', 'MEMBER', 'ACTIVE')
+                        """).update();
+
+        mockMvc.perform(put("/api/trips/1/candidates/1/vote")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"choice\":\"NO\",\"reason\":\"   \"}")
+                        .with(principal("owner-a")))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("reason"));
+
+        jdbcClient.sql("UPDATE trip SET vote_visibility = 'ANONYMOUS' WHERE id = 1").update();
+        mockMvc.perform(put("/api/trips/1/candidates/1/vote")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"choice\":\"YES\"}")
+                        .with(principal("owner-a")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.visibility").value("ANONYMOUS"))
+                .andExpect(jsonPath("$.myVote.memberId").value(1))
+                .andExpect(jsonPath("$.unvotedMemberIds[0]").value(3))
+                .andExpect(jsonPath("$.namedVotes").doesNotExist());
+
+        mockMvc.perform(get("/api/trips/1/slots/1")
+                        .with(principal("member")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.votesByCandidate.1.yesCount").value(1))
+                .andExpect(jsonPath("$.votesByCandidate.1.unvotedMemberIds[0]").value(3))
+                .andExpect(jsonPath("$.votesByCandidate.1.myVote").doesNotExist())
+                .andExpect(jsonPath("$.votesByCandidate.1.namedVotes").doesNotExist());
+    }
+
+    @Test
+    void concurrentFirstVotesHaveOneWinnerAndReturnConflictToTheOther() throws Exception {
+        createCandidateDirectly();
+        CountDownLatch start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var futures = List.of("YES", "ANY").stream()
+                    .map(choice -> executor.submit(() -> {
+                        start.await();
+                        return mockMvc.perform(put("/api/trips/1/candidates/1/vote")
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content("{\"choice\":\"" + choice + "\"}")
+                                        .with(principal("owner-a")))
+                                .andReturn().getResponse().getStatus();
+                    }))
+                    .toList();
+            start.countDown();
+            assertThat(futures).extracting(future -> future.get())
+                    .containsExactlyInAnyOrder(200, 409);
+        }
+
+        assertThat(jdbcClient.sql("""
+                        SELECT COUNT(*) FROM candidate_vote
+                        WHERE candidate_id = 1 AND member_id = 1
+                        """).query(Long.class).single()).isEqualTo(1);
+    }
+
+    @Test
+    void organizerAdoptsChangesAndClearsCandidateAtomicallyWhileMemberIsForbidden()
+            throws Exception {
+        addPlanningMembers();
+        createCandidateDirectly();
+        jdbcClient.sql("""
+                        INSERT INTO candidate (
+                            trip_id, slot_id, created_by_member_id, title, url, metadata_status
+                        ) VALUES (1, 1, 1, '新しい候補', 'https://example.com/new', 'COMPLETED')
+                        """).update();
+
+        mockMvc.perform(put("/api/trips/1/slots/1/adoption")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"candidateId\":1,\"version\":0}")
+                        .with(principal("member")))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(put("/api/trips/1/slots/1/adoption")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"candidateId\":1,\"version\":0}")
+                        .with(principal("organizer")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.slot.status").value("DECIDED"))
+                .andExpect(jsonPath("$.slot.adoptedCandidateId").value(1))
+                .andExpect(jsonPath("$.slot.version").value(1))
+                .andExpect(jsonPath("$.planItem.fromCandidateId").value(1))
+                .andExpect(jsonPath("$.planItem.version").value(0));
+
+        long planItemId = jdbcClient.sql(
+                        "SELECT id FROM plan_item WHERE trip_id = 1 AND slot_id = 1")
+                .query(Long.class).single();
+        mockMvc.perform(put("/api/trips/1/slots/1/adoption")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"candidateId\":2,\"version\":1}")
+                        .with(principal("organizer")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.slot.adoptedCandidateId").value(2))
+                .andExpect(jsonPath("$.planItem.id").value(planItemId))
+                .andExpect(jsonPath("$.planItem.fromCandidateId").value(2))
+                .andExpect(jsonPath("$.planItem.placeRef").value("https://example.com/new"))
+                .andExpect(jsonPath("$.planItem.version").value(1));
+
+        mockMvc.perform(delete("/api/trips/1/slots/1/adoption")
+                        .queryParam("version", "2")
+                        .with(principal("organizer")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("OPEN"))
+                .andExpect(jsonPath("$.adoptedCandidateId").doesNotExist())
+                .andExpect(jsonPath("$.version").value(3));
+
+        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM plan_item WHERE slot_id = 1")
+                .query(Long.class).single()).isZero();
+    }
+
+    @Test
+    void adoptionRejectsCrossSlotRejectedAndStaleCandidates() throws Exception {
+        createCandidateDirectly();
+        jdbcClient.sql("""
+                        INSERT INTO slot (
+                            id, trip_id, category, title, day_from, day_to,
+                            units, sort_order, status
+                        ) VALUES (10, 1, 'ACTIVITY', '観光', 2, 2, 1, 1, 'OPEN')
+                        """).update();
+        jdbcClient.sql("""
+                        INSERT INTO candidate (
+                            trip_id, slot_id, created_by_member_id, title, metadata_status
+                        ) VALUES (1, 10, 1, '別枠候補', 'COMPLETED')
+                        """).update();
+
+        mockMvc.perform(put("/api/trips/1/slots/1/adoption")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"candidateId\":2,\"version\":0}")
+                        .with(principal("owner-a")))
+                .andExpect(status().isUnprocessableEntity());
+
+        jdbcClient.sql("UPDATE candidate SET status = 'REJECTED' WHERE id = 1").update();
+        mockMvc.perform(put("/api/trips/1/slots/1/adoption")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"candidateId\":1,\"version\":0}")
+                        .with(principal("owner-a")))
+                .andExpect(status().isUnprocessableEntity());
+
+        jdbcClient.sql("UPDATE candidate SET status = 'OPEN' WHERE id = 1").update();
+        jdbcClient.sql("UPDATE slot SET version = 1 WHERE id = 1").update();
+        mockMvc.perform(put("/api/trips/1/slots/1/adoption")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"candidateId\":1,\"version\":0}")
+                        .with(principal("owner-a")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.currentVersion").value(1));
+    }
+
+    @Test
+    void voteAndAdoptionHideCandidatesFromAnotherTrip() throws Exception {
+        jdbcClient.sql("""
+                        INSERT INTO candidate (
+                            id, trip_id, slot_id, created_by_member_id, title, metadata_status
+                        ) VALUES (20, 2, 2, 2, '別旅行候補', 'COMPLETED')
+                        """).update();
+
+        mockMvc.perform(put("/api/trips/1/candidates/20/vote")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"choice\":\"YES\"}")
+                        .with(principal("owner-a")))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(put("/api/trips/1/slots/1/adoption")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"candidateId\":20,\"version\":0}")
+                        .with(principal("owner-a")))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void concurrentAdoptionsWithSameVersionHaveOneWinner() throws Exception {
+        createCandidateDirectly();
+        jdbcClient.sql("""
+                        INSERT INTO candidate (
+                            trip_id, slot_id, created_by_member_id, title, metadata_status
+                        ) VALUES (1, 1, 1, '候補2', 'COMPLETED')
+                        """).update();
+        CountDownLatch start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var futures = List.of(1L, 2L).stream()
+                    .map(candidateId -> executor.submit(() -> {
+                        start.await();
+                        return mockMvc.perform(put("/api/trips/1/slots/1/adoption")
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content("{\"candidateId\":" + candidateId
+                                                + ",\"version\":0}")
+                                        .with(principal("owner-a")))
+                                .andReturn().getResponse().getStatus();
+                    }))
+                    .toList();
+            start.countDown();
+            assertThat(futures).extracting(future -> future.get())
+                    .containsExactlyInAnyOrder(200, 409);
+        }
+
+        Long adoptedCandidateId = jdbcClient.sql(
+                        "SELECT adopted_candidate_id FROM slot WHERE id = 1")
+                .query(Long.class).single();
+        assertThat(jdbcClient.sql("SELECT from_candidate_id FROM plan_item WHERE slot_id = 1")
+                .query(Long.class).single()).isEqualTo(adoptedCandidateId);
+    }
+
+    @Test
+    void adoptedCandidateCannotBeRejected() throws Exception {
+        createCandidateDirectly();
+        mockMvc.perform(put("/api/trips/1/slots/1/adoption")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"candidateId\":1,\"version\":0}")
+                        .with(principal("owner-a")))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(patch("/api/trips/1/candidates/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":0,\"status\":\"REJECTED\"}")
+                        .with(principal("owner-a")))
+                .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    void candidateCreationIsIdempotentAndRejectsKeyReuseWithDifferentRequest()
+            throws Exception {
+        UUID key = UUID.randomUUID();
+        var request = post("/api/trips/1/slots/1/candidates")
+                .header("Idempotency-Key", key)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"同じ候補\"}")
+                .with(principal("owner-a"));
+
+        mockMvc.perform(request).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(1));
+        mockMvc.perform(post("/api/trips/1/slots/1/candidates")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"同じ候補\"}")
+                        .with(principal("owner-a")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(1));
+
+        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM candidate")
+                .query(Long.class).single()).isEqualTo(1);
+        assertThat(jdbcClient.sql("SELECT revision FROM trip WHERE id = 1")
+                .query(Long.class).single()).isEqualTo(1);
+        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM outbox_event")
+                .query(Long.class).single()).isEqualTo(1);
+
+        mockMvc.perform(post("/api/trips/1/slots/1/candidates")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"別の候補\"}")
+                        .with(principal("owner-a")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"));
+    }
+
+    @Test
+    void candidateMutationsIncrementRevisionAndWriteContractEvents() throws Exception {
+        createCandidate();
+        mockMvc.perform(patch("/api/trips/1/candidates/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":0,\"title\":\"更新\"}")
+                        .with(principal("owner-a")))
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/api/trips/1/candidates/1/vote")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"choice\":\"YES\"}")
+                        .with(principal("owner-a")))
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/api/trips/1/slots/1/adoption")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"candidateId\":1,\"version\":0}")
+                        .with(principal("owner-a")))
+                .andExpect(status().isOk());
+
+        assertThat(jdbcClient.sql("SELECT revision FROM trip WHERE id = 1")
+                .query(Long.class).single()).isEqualTo(4);
+        assertThat(jdbcClient.sql("""
+                        SELECT event_type FROM outbox_event
+                        WHERE trip_id = 1 ORDER BY trip_revision
+                        """).query(String.class).list()).containsExactly(
+                                "CANDIDATE_CREATED",
+                                "CANDIDATE_UPDATED",
+                                "CANDIDATE_VOTE_CHANGED",
+                                "SLOT_ADOPTION_CHANGED");
+        assertThat(jdbcClient.sql("""
+                        SELECT payload->>'type' FROM outbox_event
+                        WHERE trip_id = 1 ORDER BY trip_revision
+                        """).query(String.class).list()).containsExactly(
+                                "CANDIDATE_CREATED",
+                                "CANDIDATE_UPDATED",
+                                "CANDIDATE_VOTE_CHANGED",
+                                "SLOT_ADOPTION_CHANGED");
+        assertThat(jdbcClient.sql("""
+                        SELECT COUNT(*) FROM outbox_event
+                        WHERE jsonb_exists(payload, 'eventId')
+                          AND jsonb_exists(payload, 'tripId')
+                          AND jsonb_exists(payload, 'tripRevision')
+                          AND jsonb_exists(payload, 'occurredAt')
+                        """).query(Long.class).single()).isEqualTo(4);
+    }
+
+    @Test
+    void inactiveAndNonMembersCannotReadOrMutateCandidateResources() throws Exception {
+        createCandidateDirectly();
+        jdbcClient.sql("""
+                        INSERT INTO trip_member (
+                            trip_id, firebase_uid, name, role, status, left_at
+                        ) VALUES (1, 'left-member', 'Left', 'MEMBER', 'LEFT', CURRENT_TIMESTAMP)
+                        """).update();
+
+        for (String uid : List.of("left-member", "outsider")) {
+            mockMvc.perform(get("/api/trips/1/slots/1").with(principal(uid)))
+                    .andExpect(status().isNotFound());
+            mockMvc.perform(put("/api/trips/1/candidates/1/vote")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"choice\":\"YES\"}")
+                            .with(principal(uid)))
+                    .andExpect(status().isNotFound());
+            mockMvc.perform(patch("/api/trips/1/candidates/1")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"version\":0,\"title\":\"不正更新\"}")
+                    .with(principal(uid)))
+                    .andExpect(status().isNotFound());
+            mockMvc.perform(post("/api/trips/1/slots/1/candidates")
+                            .header("Idempotency-Key", UUID.randomUUID())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"title\":\"不正作成\"}")
+                            .with(principal(uid)))
+                    .andExpect(status().isNotFound());
+            mockMvc.perform(put("/api/trips/1/slots/1/adoption")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"candidateId\":1,\"version\":0}")
+                            .with(principal(uid)))
+                    .andExpect(status().isNotFound());
+        }
+    }
+
     private org.springframework.test.web.servlet.ResultActions candidateRequest(String body)
             throws Exception {
         return mockMvc.perform(post("/api/trips/1/slots/1/candidates")
@@ -342,6 +728,16 @@ class CandidateApiTest {
                         INSERT INTO candidate (
                             trip_id, slot_id, created_by_member_id, title, metadata_status
                         ) VALUES (1, 1, 1, '候補', 'COMPLETED')
+                        """).update();
+    }
+
+    private void addPlanningMembers() {
+        jdbcClient.sql("""
+                        INSERT INTO trip_member (
+                            trip_id, firebase_uid, name, role, status
+                        ) VALUES
+                            (1, 'organizer', 'Organizer', 'ORGANIZER', 'ACTIVE'),
+                            (1, 'member', 'Member', 'MEMBER', 'ACTIVE')
                         """).update();
     }
 

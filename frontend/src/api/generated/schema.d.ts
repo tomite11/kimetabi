@@ -767,6 +767,8 @@ export interface components {
             yesCount: number;
             anyCount: number;
             noCount: number;
+            /** @description ACTIVE members who have not voted. Present for both NAMED and ANONYMOUS visibility. */
+            unvotedMemberIds: components["schemas"]["Id"][];
             myVote?: components["schemas"]["Vote"] | null;
             /** @description Present only when visibility is NAMED. Never present for ANONYMOUS, including for OWNER and ORGANIZER. */
             namedVotes?: components["schemas"]["Vote"][];
