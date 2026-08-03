@@ -2279,7 +2279,8 @@
           "trip",
           "currentMemberId",
           "members",
-          "slots"
+          "slots",
+          "planItems"
         ],
         "properties": {
           "trip": {
@@ -2298,6 +2299,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Slot"
+            }
+          },
+          "planItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanItem"
             }
           }
         }

@@ -508,6 +508,12 @@ class CandidateApiTest {
                 .andExpect(jsonPath("$.planItem.fromCandidateId").value(1))
                 .andExpect(jsonPath("$.planItem.version").value(0));
 
+        mockMvc.perform(get("/api/trips/1").with(principal("organizer")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.planItems[0].slotId").value(1))
+                .andExpect(jsonPath("$.planItems[0].fromCandidateId").value(1))
+                .andExpect(jsonPath("$.planItems[0].title").value("候補"));
+
         long planItemId = jdbcClient.sql(
                         "SELECT id FROM plan_item WHERE trip_id = 1 AND slot_id = 1")
                 .query(Long.class).single();

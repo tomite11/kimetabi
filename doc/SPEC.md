@@ -555,6 +555,7 @@ public BudgetSimulation simulate(Long tripId, Set<Long> selectedCandidateIds) {
 - 採択の正本は `slot.adopted_candidate_id` とし、`candidate.status` にADOPTEDを重複保持しない
 - 採択できるのはOWNERまたはORGANIZER。一般MEMBERは投票と候補追加まで
 - 採択候補が同じ旅行・同じ枠に属することを検証し、`slot.status = DECIDED` と `plan_item` の作成を同一トランザクションで行う
+- 旅行snapshotは採択後の予定を再表示できるよう、枠と同じ旅行に属する `plan_item` の一覧を含める
 - 別候補へ変更する場合は既存 `plan_item` を更新し、紐づく確定支出があれば警告して明示確認を求める。支出自体は削除しない
 - 採択解除は紐づく確定支出がない場合のみ可能。支出がある場合は候補変更か、支出の紐付け解除を先に行う
 

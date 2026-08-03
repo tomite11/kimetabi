@@ -103,7 +103,8 @@ public class TripService {
                 toResource(trip),
                 currentMemberId,
                 repository.listMembers(tripId),
-                repository.listSlots(tripId));
+                repository.listSlots(tripId),
+                repository.listPlanItems(tripId));
     }
 
     @Transactional
@@ -213,7 +214,8 @@ public class TripService {
                 toResource(trip),
                 currentMemberId,
                 repository.listMembers(tripId),
-                repository.listSlots(tripId));
+                repository.listSlots(tripId),
+                repository.listPlanItems(tripId));
     }
 
     private void validate(CreateTripRequest request) {

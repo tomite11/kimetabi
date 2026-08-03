@@ -114,6 +114,11 @@
 .slotLink small {
   color: var(--color-ink-soft);
 }
+.slotLink > .confirmedPlan {
+  color: var(--color-ink);
+  font-size: 0.95rem;
+  letter-spacing: normal;
+}
 .slotActions {
   display: flex;
   flex-wrap: wrap;

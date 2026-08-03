@@ -151,6 +151,12 @@ export function CandidateComparisonPage() {
                 slots: current.slots.map((slot) =>
                   slot.id === result.slot.id ? result.slot : slot,
                 ),
+                planItems: [
+                  ...current.planItems.filter(
+                    (planItem) => planItem.slotId !== result.planItem.slotId,
+                  ),
+                  result.planItem,
+                ],
               }
             : current,
       );

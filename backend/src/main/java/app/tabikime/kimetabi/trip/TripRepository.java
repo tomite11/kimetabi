@@ -13,6 +13,8 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
+import app.tabikime.kimetabi.candidate.PlanItemResource;
+
 @Repository
 public class TripRepository {
 
@@ -217,6 +219,27 @@ public class TripRepository {
                         """)
                 .param("tripId", tripId)
                 .query(SLOT_ROW_MAPPER)
+                .list();
+    }
+
+    List<PlanItemResource> listPlanItems(long tripId) {
+        return jdbcClient.sql("""
+                        SELECT id, slot_id, from_candidate_id, title, starts_at,
+                               timezone, place_ref, version
+                        FROM plan_item
+                        WHERE trip_id = :tripId
+                        ORDER BY slot_id, id
+                        """)
+                .param("tripId", tripId)
+                .query((resultSet, rowNumber) -> new PlanItemResource(
+                        resultSet.getLong("id"),
+                        resultSet.getLong("slot_id"),
+                        resultSet.getLong("from_candidate_id"),
+                        resultSet.getString("title"),
+                        resultSet.getObject("starts_at", OffsetDateTime.class),
+                        resultSet.getString("timezone"),
+                        resultSet.getString("place_ref"),
+                        resultSet.getLong("version")))
                 .list();
     }
 

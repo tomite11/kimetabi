@@ -632,6 +632,7 @@ export interface components {
             currentMemberId: components["schemas"]["Id"];
             members: components["schemas"]["Member"][];
             slots: components["schemas"]["Slot"][];
+            planItems: components["schemas"]["PlanItem"][];
         };
         InvitationLink: {
             id: components["schemas"]["Id"];

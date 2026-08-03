@@ -1,9 +1,12 @@
 import { cleanup, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router";
 
 import { renderWithProviders } from "../../test/renderWithProviders";
+import { tokyoTripSnapshot } from "../../test/mocks/fixtures";
+import { server } from "../../test/mocks/server";
 import { ExpensePage } from "./ExpensePage";
 import { PlanPage } from "./PlanPage";
 import { CandidateComparisonPage } from "../planning/CandidateComparisonPage";
@@ -64,6 +67,38 @@ describe("TripShell", () => {
     expect(
       await screen.findByRole("heading", { name: "往路の移動" }),
     ).toBeVisible();
+  });
+
+  it("採択済みのplan itemを旅程に表示する", async () => {
+    server.use(
+      http.get("*/api/trips/42", () =>
+        HttpResponse.json({
+          ...tokyoTripSnapshot,
+          slots: [
+            {
+              ...tokyoTripSnapshot.slots[0],
+              status: "DECIDED",
+              adoptedCandidateId: 501,
+            },
+          ],
+          planItems: [
+            {
+              id: 301,
+              slotId: 101,
+              fromCandidateId: 501,
+              title: "朝の新幹線",
+              startsAt: null,
+              timezone: "Asia/Tokyo",
+              placeRef: null,
+              version: 0,
+            },
+          ],
+        }),
+      ),
+    );
+    renderShell("/t/42/plan");
+
+    expect(await screen.findByText("確定予定: 朝の新幹線")).toBeVisible();
   });
 
   it("支出の空状態でもタブ位置と主アクションを維持する", async () => {

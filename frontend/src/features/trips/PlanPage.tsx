@@ -67,6 +67,9 @@ export function PlanPage() {
   );
   const canManage =
     currentMember?.role === "OWNER" || currentMember?.role === "ORGANIZER";
+  const planItemsBySlot = new Map(
+    snapshot.planItems.map((planItem) => [planItem.slotId, planItem]),
+  );
   const form = useForm<SlotFormValues>({
     resolver: zodResolver(slotSchema),
     defaultValues: {
@@ -202,56 +205,65 @@ export function PlanPage() {
 
       {snapshot.slots.length ? (
         <ol className={styles.planList}>
-          {snapshot.slots.map((slot, index) => (
-            <li key={slot.id}>
-              <Link className={styles.slotLink} to={`${slot.id}`}>
-                <span>
-                  DAY {slot.dayFrom}
-                  {slot.dayTo > slot.dayFrom ? `–${slot.dayTo}` : ""}
-                </span>
-                <strong>{slot.title}</strong>
-                <small>
-                  {slot.status === "DECIDED" ? "予定確定" : "候補を比べる"} ·{" "}
-                  {slot.estPerPerson == null
-                    ? "概算未設定"
-                    : `${slot.estPerPerson.toLocaleString("ja-JP")}円 / 人`}
-                </small>
-              </Link>
-              {canManage ? (
-                <div
-                  className={styles.slotActions}
-                  aria-label={`${slot.title}の操作`}
-                >
-                  <button
-                    type="button"
-                    disabled={index === 0 || reorderMutation.isPending}
-                    onClick={() => move(index, -1)}
-                  >
-                    上へ
-                  </button>
-                  <button
-                    type="button"
-                    disabled={
-                      index === snapshot.slots.length - 1 ||
-                      reorderMutation.isPending
-                    }
-                    onClick={() => move(index, 1)}
-                  >
-                    下へ
-                  </button>
-                  {slot.category === "LODGING" && slot.dayTo > slot.dayFrom ? (
-                    <SplitSlotControls
-                      slot={slot}
-                      pending={splitMutation.isPending}
-                      onSplit={(target, splitAfterDay) =>
-                        splitMutation.mutate({ slot: target, splitAfterDay })
-                      }
-                    />
+          {snapshot.slots.map((slot, index) => {
+            const planItem = planItemsBySlot.get(slot.id);
+            return (
+              <li key={slot.id}>
+                <Link className={styles.slotLink} to={`${slot.id}`}>
+                  <span>
+                    DAY {slot.dayFrom}
+                    {slot.dayTo > slot.dayFrom ? `–${slot.dayTo}` : ""}
+                  </span>
+                  <strong>{slot.title}</strong>
+                  {planItem ? (
+                    <span className={styles.confirmedPlan}>
+                      確定予定: {planItem.title}
+                    </span>
                   ) : null}
-                </div>
-              ) : null}
-            </li>
-          ))}
+                  <small>
+                    {slot.status === "DECIDED" ? "予定確定" : "候補を比べる"} ·{" "}
+                    {slot.estPerPerson == null
+                      ? "概算未設定"
+                      : `${slot.estPerPerson.toLocaleString("ja-JP")}円 / 人`}
+                  </small>
+                </Link>
+                {canManage ? (
+                  <div
+                    className={styles.slotActions}
+                    aria-label={`${slot.title}の操作`}
+                  >
+                    <button
+                      type="button"
+                      disabled={index === 0 || reorderMutation.isPending}
+                      onClick={() => move(index, -1)}
+                    >
+                      上へ
+                    </button>
+                    <button
+                      type="button"
+                      disabled={
+                        index === snapshot.slots.length - 1 ||
+                        reorderMutation.isPending
+                      }
+                      onClick={() => move(index, 1)}
+                    >
+                      下へ
+                    </button>
+                    {slot.category === "LODGING" &&
+                    slot.dayTo > slot.dayFrom ? (
+                      <SplitSlotControls
+                        slot={slot}
+                        pending={splitMutation.isPending}
+                        onSplit={(target, splitAfterDay) =>
+                          splitMutation.mutate({ slot: target, splitAfterDay })
+                        }
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
         </ol>
       ) : (
         <div className={styles.emptyState}>

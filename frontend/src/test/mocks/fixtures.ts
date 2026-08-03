@@ -44,6 +44,7 @@ export const tokyoTripSnapshot = {
       version: 1,
     },
   ],
+  planItems: [],
 } satisfies components["schemas"]["TripSnapshot"];
 
 export const transportSlotDetail = {
