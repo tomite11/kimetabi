@@ -113,6 +113,103 @@ class CandidateApiTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.url").value("https://example.com/hotel"))
                 .andExpect(jsonPath("$.metadataStatus").value("PENDING"));
+
+        assertThat(jdbcClient.sql("SELECT revision FROM trip WHERE id = 1")
+                .query(Long.class).single()).isEqualTo(1);
+        assertThat(jdbcClient.sql("""
+                        SELECT event_type FROM outbox_event
+                        WHERE trip_id = 1 AND trip_revision = 1
+                        """).query(String.class).list()).containsExactlyInAnyOrder(
+                                "CANDIDATE_CREATED",
+                                "CANDIDATE_METADATA_REQUESTED");
+        assertThat(jdbcClient.sql("""
+                        SELECT COUNT(*) FROM outbox_event
+                        WHERE trip_id = 1
+                          AND trip_revision = 1
+                          AND resource_type = 'candidate'
+                          AND resource_id = 1
+                          AND resource_version = 0
+                          AND payload->>'tripRevision' = '1'
+                          AND payload->>'resourceId' = '1'
+                          AND jsonb_exists(payload, 'eventId')
+                          AND jsonb_exists(payload, 'occurredAt')
+                        """).query(Long.class).single()).isEqualTo(2);
+    }
+
+    @Test
+    void replayedUrlCandidateDoesNotDuplicateMetadataJobRequest() throws Exception {
+        UUID key = UUID.randomUUID();
+        String body = "{\"url\":\"https://example.com/hotel\"}";
+
+        mockMvc.perform(post("/api/trips/1/slots/1/candidates")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .with(principal("owner-a")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.metadataStatus").value("PENDING"));
+        mockMvc.perform(post("/api/trips/1/slots/1/candidates")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .with(principal("owner-a")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(1));
+
+        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM candidate")
+                .query(Long.class).single()).isEqualTo(1);
+        assertThat(jdbcClient.sql("SELECT revision FROM trip WHERE id = 1")
+                .query(Long.class).single()).isEqualTo(1);
+        assertThat(jdbcClient.sql("""
+                        SELECT event_type FROM outbox_event
+                        WHERE trip_id = 1
+                        """).query(String.class).list()).containsExactlyInAnyOrder(
+                                "CANDIDATE_CREATED",
+                                "CANDIDATE_METADATA_REQUESTED");
+    }
+
+    @Test
+    void metadataJobOutboxFailureRollsBackCandidateRevisionAndIdempotencyRecord()
+            throws Exception {
+        jdbcClient.sql("""
+                        CREATE FUNCTION reject_metadata_job_request()
+                        RETURNS trigger LANGUAGE plpgsql AS $$
+                        BEGIN
+                            IF NEW.event_type = 'CANDIDATE_METADATA_REQUESTED' THEN
+                                RAISE EXCEPTION 'metadata job request rejected for test';
+                            END IF;
+                            RETURN NEW;
+                        END
+                        $$
+                        """).update();
+        jdbcClient.sql("""
+                        CREATE TRIGGER reject_metadata_job_request
+                        BEFORE INSERT ON outbox_event
+                        FOR EACH ROW EXECUTE FUNCTION reject_metadata_job_request()
+                        """).update();
+
+        try {
+            mockMvc.perform(post("/api/trips/1/slots/1/candidates")
+                            .header("Idempotency-Key", UUID.randomUUID())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"url\":\"https://example.com/hotel\"}")
+                            .with(principal("owner-a")))
+                    .andExpect(status().isInternalServerError());
+
+            assertThat(jdbcClient.sql("SELECT COUNT(*) FROM candidate")
+                    .query(Long.class).single()).isZero();
+            assertThat(jdbcClient.sql("SELECT revision FROM trip WHERE id = 1")
+                    .query(Long.class).single()).isZero();
+            assertThat(jdbcClient.sql("SELECT COUNT(*) FROM outbox_event")
+                    .query(Long.class).single()).isZero();
+            assertThat(jdbcClient.sql("SELECT COUNT(*) FROM idempotency_request")
+                    .query(Long.class).single()).isZero();
+        } finally {
+            jdbcClient.sql("DROP TRIGGER reject_metadata_job_request ON outbox_event")
+                    .update();
+            jdbcClient.sql("DROP FUNCTION reject_metadata_job_request()")
+                    .update();
+        }
     }
 
     @Test

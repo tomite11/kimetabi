@@ -230,6 +230,11 @@ public class CandidateService {
         eventWriter.write(
                 tripId, revision, "CANDIDATE_CREATED", "candidate",
                 candidate.id(), candidate.version());
+        if (candidate.metadataStatus() == MetadataStatus.PENDING) {
+            eventWriter.write(
+                    tripId, revision, "CANDIDATE_METADATA_REQUESTED", "candidate",
+                    candidate.id(), candidate.version());
+        }
         idempotencyStore.complete(
                 firebaseUid,
                 "CREATE_CANDIDATE",
