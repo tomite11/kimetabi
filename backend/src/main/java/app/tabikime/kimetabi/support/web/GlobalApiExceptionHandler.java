@@ -30,6 +30,8 @@ import app.tabikime.kimetabi.trip.TripVersionConflictException;
 import app.tabikime.kimetabi.candidate.CandidateVersionConflictException;
 import app.tabikime.kimetabi.candidate.SlotVersionConflictException;
 import app.tabikime.kimetabi.candidate.VoteVersionConflictException;
+import app.tabikime.kimetabi.expense.ExpenseVersionConflictException;
+import app.tabikime.kimetabi.expense.ExpenseStateConflictException;
 
 @RestControllerAdvice
 public class GlobalApiExceptionHandler {
@@ -329,6 +331,40 @@ public class GlobalApiExceptionHandler {
         );
         problem.setProperty("currentVersion", exception.current().version());
         problem.setProperty("current", exception.current());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(ExpenseVersionConflictException.class)
+    ResponseEntity<ProblemDetail> handleExpenseVersionConflict(
+            ExpenseVersionConflictException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = createProblem(
+                HttpStatus.CONFLICT,
+                CONFLICT_TYPE,
+                "競合が発生しました",
+                ApiErrorCode.VERSION_CONFLICT,
+                "支出が別の操作で更新されています。",
+                request
+        );
+        problem.setProperty("currentVersion", exception.current().version());
+        problem.setProperty("current", exception.current());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(ExpenseStateConflictException.class)
+    ResponseEntity<ProblemDetail> handleExpenseStateConflict(
+            ExpenseStateConflictException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = createProblem(
+                HttpStatus.CONFLICT,
+                CONFLICT_TYPE,
+                "競合が発生しました",
+                ApiErrorCode.RESOURCE_CONFLICT,
+                exception.getMessage(),
+                request
+        );
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 

@@ -68,6 +68,15 @@ public class TripAuthorizationService {
         return require(firebaseUid, tripId, permission).id();
     }
 
+    public AuthorizedMember requireActor(
+            String firebaseUid,
+            long tripId,
+            TripPermission permission
+    ) {
+        TripRepository.StoredMember member = require(firebaseUid, tripId, permission);
+        return new AuthorizedMember(member.id(), member.role());
+    }
+
     public TripRepository.StoredMember requireMemberResource(
             String firebaseUid,
             long tripId,
@@ -109,5 +118,8 @@ public class TripAuthorizationService {
         EnumSet<TripPermission> result = EnumSet.copyOf(base);
         result.addAll(java.util.List.of(additions));
         return result;
+    }
+
+    public record AuthorizedMember(long id, MemberRole role) {
     }
 }

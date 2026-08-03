@@ -96,6 +96,7 @@ WebSocket、Cloud Storageの責務と、少なくとも1回配送での回復方
 | `CANDIDATE_VOTE_CHANGED` | `candidate` | 投票commit |
 | `SLOT_ADOPTION_CHANGED` | `slot` | 採択・変更・解除commit |
 | `EXPENSE_DRAFT_CREATED` | `expense` | DRAFT作成commit |
+| `EXPENSE_DRAFT_DELETED` | `expense` | DRAFT削除commit |
 | `EXPENSE_CONFIRMED` | `expense` | 支出確定commit |
 | `EXPENSE_UPDATED` | `expense` | 確定支出訂正commit |
 | `SETTLEMENT_CONFIRMED` | `settlement` | 精算確定commit |
