@@ -12,7 +12,8 @@ import org.junit.jupiter.api.Test;
 class InitialSlotFactoryTest {
 
     private final InitialSlotFactory factory = new InitialSlotFactory(
-            Clock.fixed(Instant.parse("2030-07-01T00:30:00Z"), ZoneOffset.UTC));
+            new SlotDeadlineCalculator(
+                    Clock.fixed(Instant.parse("2030-07-01T00:30:00Z"), ZoneOffset.UTC)));
 
     @Test
     void createsOnlyOutboundConsecutiveLodgingAndReturnForMultiDayTrip() {

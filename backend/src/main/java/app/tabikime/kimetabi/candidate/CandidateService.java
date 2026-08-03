@@ -8,6 +8,7 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import app.tabikime.kimetabi.trip.SlotDeadlineCalculator;
 import app.tabikime.kimetabi.trip.TripAuthorizationService;
 import app.tabikime.kimetabi.trip.TripNotFoundException;
 import app.tabikime.kimetabi.trip.TripPermission;
@@ -18,13 +19,16 @@ public class CandidateService {
 
     private final CandidateRepository repository;
     private final TripAuthorizationService authorization;
+    private final SlotDeadlineCalculator deadlineCalculator;
 
     CandidateService(
             CandidateRepository repository,
-            TripAuthorizationService authorization
+            TripAuthorizationService authorization,
+            SlotDeadlineCalculator deadlineCalculator
     ) {
         this.repository = repository;
         this.authorization = authorization;
+        this.deadlineCalculator = deadlineCalculator;
     }
 
     @Transactional(readOnly = true)
@@ -50,7 +54,8 @@ public class CandidateService {
             throw new TripValidationException(
                     "sortOrder", "sortOrderは現在の枠数以下にしてください。");
         }
-        long slotId = repository.insertSlot(tripId, request);
+        CreateSlotRequest resolvedRequest = withDefaultDeadline(tripId, request);
+        long slotId = repository.insertSlot(tripId, resolvedRequest);
         return repository.findSlot(tripId, slotId).orElseThrow();
     }
 
@@ -259,5 +264,24 @@ public class CandidateService {
                 || request.dayToPresent() || request.unitsPresent()
                 || request.sortOrderPresent() || request.deadlinePresent()
                 || request.estPerPersonPresent() || request.statusPresent();
+    }
+
+    private CreateSlotRequest withDefaultDeadline(long tripId, CreateSlotRequest request) {
+        if (request.deadline() != null) {
+            return request;
+        }
+        CandidateRepository.TripTiming timing = repository.tripTiming(tripId);
+        return deadlineCalculator.calculate(
+                        request.category(), timing.startsOn(), timing.timezone())
+                .map(deadline -> new CreateSlotRequest(
+                        request.category(),
+                        request.title(),
+                        request.dayFrom(),
+                        request.dayTo(),
+                        request.units(),
+                        request.sortOrder(),
+                        deadline,
+                        request.estPerPerson()))
+                .orElse(request);
     }
 }

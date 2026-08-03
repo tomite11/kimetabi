@@ -1,8 +1,6 @@
 package app.tabikime.kimetabi.trip;
 
-import java.time.Clock;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,15 +13,16 @@ public class InitialSlotFactory {
     static final long LODGING_ESTIMATE_PER_PERSON_PER_NIGHT = 10_000L;
     static final long TRANSPORT_ESTIMATE_PER_PERSON_PER_LEG = 12_000L;
 
-    private final Clock clock;
+    private final SlotDeadlineCalculator deadlineCalculator;
 
-    public InitialSlotFactory(Clock clock) {
-        this.clock = clock;
+    public InitialSlotFactory(SlotDeadlineCalculator deadlineCalculator) {
+        this.deadlineCalculator = deadlineCalculator;
     }
 
     List<SlotDraft> create(LocalDate startsOn, LocalDate endsOn, String timezone) {
         int nights = Math.toIntExact(ChronoUnit.DAYS.between(startsOn, endsOn));
-        LocalDate deadline = deadline(startsOn, timezone);
+        LocalDate transportDeadline = deadlineCalculator.calculate(
+                SlotCategory.TRANSPORT, startsOn, timezone).orElseThrow();
         List<SlotDraft> slots = new ArrayList<>();
         if (nights == 0) {
             slots.add(new SlotDraft(
@@ -33,7 +32,7 @@ public class InitialSlotFactory {
                     1,
                     2,
                     0,
-                    deadline,
+                    transportDeadline,
                     TRANSPORT_ESTIMATE_PER_PERSON_PER_LEG));
             return List.copyOf(slots);
         }
@@ -45,7 +44,7 @@ public class InitialSlotFactory {
                 1,
                 1,
                 0,
-                deadline,
+                transportDeadline,
                 TRANSPORT_ESTIMATE_PER_PERSON_PER_LEG));
         slots.add(new SlotDraft(
                 SlotCategory.LODGING,
@@ -54,7 +53,8 @@ public class InitialSlotFactory {
                 nights,
                 nights,
                 1,
-                deadline,
+                deadlineCalculator.calculate(SlotCategory.LODGING, startsOn, timezone)
+                        .orElseThrow(),
                 LODGING_ESTIMATE_PER_PERSON_PER_NIGHT));
         slots.add(new SlotDraft(
                 SlotCategory.TRANSPORT,
@@ -63,15 +63,9 @@ public class InitialSlotFactory {
                 nights + 1,
                 1,
                 2,
-                deadline,
+                transportDeadline,
                 TRANSPORT_ESTIMATE_PER_PERSON_PER_LEG));
         return List.copyOf(slots);
-    }
-
-    private LocalDate deadline(LocalDate startsOn, String timezone) {
-        LocalDate calculated = startsOn.minusDays(14);
-        LocalDate earliest = LocalDate.now(clock.withZone(ZoneId.of(timezone))).plusDays(1);
-        return calculated.isBefore(earliest) ? earliest : calculated;
     }
 
     record SlotDraft(

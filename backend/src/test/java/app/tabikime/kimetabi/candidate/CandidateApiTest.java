@@ -268,7 +268,8 @@ class CandidateApiTest {
                         .with(principal("organizer")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(3))
-                .andExpect(jsonPath("$.sortOrder").value(0));
+                .andExpect(jsonPath("$.sortOrder").value(0))
+                .andExpect(jsonPath("$.deadline").value("2030-07-25"));
 
         assertThat(jdbcClient.sql("""
                         SELECT sort_order FROM slot WHERE id = 1

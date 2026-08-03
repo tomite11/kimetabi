@@ -1,5 +1,6 @@
 package app.tabikime.kimetabi.candidate;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -55,6 +56,18 @@ class CandidateRepository {
                 .query(Integer.class)
                 .optional()
                 .orElseThrow();
+    }
+
+    TripTiming tripTiming(long tripId) {
+        return jdbcClient.sql("""
+                        SELECT starts_on, timezone
+                        FROM trip WHERE id = :tripId AND deleted_at IS NULL
+                        """)
+                .param("tripId", tripId)
+                .query((resultSet, rowNumber) -> new TripTiming(
+                        resultSet.getObject("starts_on", LocalDate.class),
+                        resultSet.getString("timezone")))
+                .single();
     }
 
     int slotCount(long tripId) {
@@ -344,6 +357,9 @@ class CandidateRepository {
                 MetadataStatus.valueOf(resultSet.getString("metadata_status")),
                 resultSet.getString("metadata_error_code"),
                 resultSet.getLong("version"));
+    }
+
+    record TripTiming(LocalDate startsOn, String timezone) {
     }
 
     private String enumName(Enum<?> value) {
