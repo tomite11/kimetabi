@@ -1,5 +1,8 @@
 package app.tabikime.kimetabi.expense;
 
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -68,6 +71,53 @@ class ExpenseReceiptRepository {
                 .update();
     }
 
+    List<OrphanCandidate> findOrphanCandidates(Instant cutoff, int limit) {
+        return jdbcClient.sql("""
+                        SELECT id, trip_id, expense_id
+                        FROM expense_receipt
+                        WHERE upload_status IN ('PENDING', 'FAILED')
+                          AND created_at <= :cutoff
+                        ORDER BY created_at, id
+                        LIMIT :limit
+                        """)
+                .param("cutoff", OffsetDateTime.ofInstant(cutoff, java.time.ZoneOffset.UTC))
+                .param("limit", limit)
+                .query((resultSet, rowNumber) -> new OrphanCandidate(
+                        resultSet.getObject("id", UUID.class),
+                        resultSet.getLong("trip_id"),
+                        resultSet.getLong("expense_id")))
+                .list();
+    }
+
+    Optional<OrphanReceipt> lockOrphan(UUID receiptId, Instant cutoff) {
+        return jdbcClient.sql("""
+                        SELECT id, trip_id, expense_id, object_key
+                        FROM expense_receipt
+                        WHERE id = :receiptId
+                          AND upload_status IN ('PENDING', 'FAILED')
+                          AND created_at <= :cutoff
+                        FOR UPDATE
+                        """)
+                .param("receiptId", receiptId)
+                .param("cutoff", OffsetDateTime.ofInstant(cutoff, java.time.ZoneOffset.UTC))
+                .query((resultSet, rowNumber) -> new OrphanReceipt(
+                        resultSet.getObject("id", UUID.class),
+                        resultSet.getLong("trip_id"),
+                        resultSet.getLong("expense_id"),
+                        resultSet.getString("object_key")))
+                .optional();
+    }
+
+    boolean deleteOrphan(UUID receiptId) {
+        return jdbcClient.sql("""
+                        DELETE FROM expense_receipt
+                        WHERE id = :receiptId
+                          AND upload_status IN ('PENDING', 'FAILED')
+                        """)
+                .param("receiptId", receiptId)
+                .update() == 1;
+    }
+
     record PendingReceipt(
             UUID id,
             String objectKey,
@@ -75,5 +125,11 @@ class ExpenseReceiptRepository {
             long byteSize,
             String status
     ) {
+    }
+
+    record OrphanReceipt(UUID id, long tripId, long expenseId, String objectKey) {
+    }
+
+    record OrphanCandidate(UUID id, long tripId, long expenseId) {
     }
 }

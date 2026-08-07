@@ -4,11 +4,13 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import app.tabikime.kimetabi.support.event.OutboxEventWriter;
+import app.tabikime.kimetabi.support.idempotency.IdempotencyStore;
 import app.tabikime.kimetabi.trip.MemberRole;
 import app.tabikime.kimetabi.trip.TripAuthorizationService;
 import app.tabikime.kimetabi.trip.TripNotFoundException;
@@ -23,17 +25,20 @@ class ExpenseService {
     private final TripAuthorizationService authorization;
     private final OutboxEventWriter eventWriter;
     private final AuditEventWriter auditWriter;
+    private final IdempotencyStore idempotencyStore;
 
     ExpenseService(
             ExpenseRepository repository,
             TripAuthorizationService authorization,
             OutboxEventWriter eventWriter,
-            AuditEventWriter auditWriter
+            AuditEventWriter auditWriter,
+            IdempotencyStore idempotencyStore
     ) {
         this.repository = repository;
         this.authorization = authorization;
         this.eventWriter = eventWriter;
         this.auditWriter = auditWriter;
+        this.idempotencyStore = idempotencyStore;
     }
 
     @Transactional(readOnly = true)
@@ -85,18 +90,36 @@ class ExpenseService {
     ExpenseResource create(
             String firebaseUid,
             long tripId,
+            UUID idempotencyKey,
             CreateExpenseDraftRequest request
     ) {
         long actorMemberId = authorization.requireMemberId(
                 firebaseUid, tripId, TripPermission.ADD_EXPENSE);
         validateCreate(tripId, request);
         ExpenseSource source = request.source() == null ? ExpenseSource.MANUAL : request.source();
+        var idempotencyRequest = new ExpenseCreateIdempotencyRequest(
+                tripId, request.planItemId(), request.amount(), request.paidAt(),
+                source, Boolean.TRUE.equals(request.hasReceipt()));
+        String requestHash = idempotencyStore.hash(idempotencyRequest);
+        var replay = idempotencyStore.claimOrReplay(
+                firebaseUid, "CREATE_EXPENSE_DRAFT", idempotencyKey, requestHash);
+        if (replay != null) {
+            return idempotencyStore.read(replay, ExpenseResource.class);
+        }
         long expenseId = repository.insert(tripId, actorMemberId, request, source);
         ExpenseResource expense = repository.find(tripId, expenseId).orElseThrow();
+        auditWriter.write(tripId, actorMemberId, "EXPENSE_DRAFT_CREATED", null, expense);
         long revision = eventWriter.nextRevision(tripId);
         eventWriter.write(
                 tripId, revision, "EXPENSE_DRAFT_CREATED", "expense",
                 expense.id(), expense.version());
+        idempotencyStore.complete(
+                firebaseUid,
+                "CREATE_EXPENSE_DRAFT",
+                idempotencyKey,
+                "EXPENSE",
+                expense.id(),
+                expense);
         return expense;
     }
 
@@ -302,5 +325,15 @@ class ExpenseService {
 
     private TripValidationException invalid(String field, String message) {
         return new TripValidationException(field, message);
+    }
+
+    private record ExpenseCreateIdempotencyRequest(
+            long tripId,
+            Long planItemId,
+            Long amount,
+            java.time.OffsetDateTime paidAt,
+            ExpenseSource source,
+            boolean hasReceipt
+    ) {
     }
 }

@@ -41,7 +41,8 @@ public class ExpenseController {
             @RequestHeader("Idempotency-Key") UUID idempotencyKey,
             @Valid @RequestBody CreateExpenseDraftRequest request
     ) {
-        ExpenseResource expense = service.create(principal.firebaseUid(), tripId, request);
+        ExpenseResource expense = service.create(
+                principal.firebaseUid(), tripId, idempotencyKey, request);
         return ResponseEntity.created(
                         URI.create("/api/trips/" + tripId + "/expenses/" + expense.id()))
                 .body(expense);

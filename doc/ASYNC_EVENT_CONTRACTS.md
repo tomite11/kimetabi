@@ -97,6 +97,9 @@ WebSocket、Cloud Storageの責務と、少なくとも1回配送での回復方
 | `SLOT_ADOPTION_CHANGED` | `slot` | 採択・変更・解除commit |
 | `EXPENSE_DRAFT_CREATED` | `expense` | DRAFT作成commit |
 | `EXPENSE_DRAFT_DELETED` | `expense` | DRAFT削除commit |
+| `EXPENSE_RECEIPT_UPLOAD_PREPARED` | `expense` | PENDING画像とupload capability準備commit |
+| `EXPENSE_RECEIPT_UPLOADED` | `expense` | Storage metadata検証とUPLOADED更新commit |
+| `EXPENSE_RECEIPT_ORPHAN_CLEANED` | `expense` | 期限切れPENDING/FAILED画像の回収commit |
 | `EXPENSE_CONFIRMED` | `expense` | 支出確定commit |
 | `EXPENSE_UPDATED` | `expense` | 確定支出訂正commit |
 | `SETTLEMENT_CONFIRMED` | `settlement` | 精算確定commit |
@@ -120,5 +123,9 @@ WebSocket、Cloud Storageの責務と、少なくとも1回配送での回復方
 - clientの元filenameをobject keyに使わない。
 - JPEG、PNG、WebPだけを許可し、最大10 MiB。申告値だけでなくStorage上の実値を
   completion時に確認する。
-- PENDING/FAILEDの孤立objectを定期削除する。削除までの保持時間は仕様にないため
-  M0では決定しない。
+- PENDING/FAILEDの孤立objectは作成から24時間保持し、Cloud Schedulerから30分周期で
+  `/internal/receipts/orphans/cleanup` を呼び出して1回最大100件を回収する。
+- Storage objectの削除成功（既に存在しない場合を含む）後だけDB行を削除する。
+  Storage削除失敗時はDB行を保持し、次回周期で再試行する。UPLOADEDは対象外とする。
+- cleanup APIはScheduler専用service accountのOIDCだけを許可する。ログにはreceipt、
+  trip、expenseのIDと結果を残し、object keyや署名付きURLは出力しない。

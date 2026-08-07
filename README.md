@@ -71,8 +71,10 @@ dev、staging、productionは別projectとし、上記service account IDを各pr
 Cloud Tasks標準のbackoffを使用します。
 
 Cloud Tasksのpayloadには`eventId`と`candidateId`だけを入れ、raw URLはDBから取得します。
-`/internal/tasks/**`と`/internal/outbox/**`は、それぞれ対応するOIDC identity以外を
-拒否します。
+`/internal/tasks/**`と`/internal/outbox/**`、`/internal/receipts/**`は、それぞれ
+対応するOIDC identity以外を拒否します。Schedulerは30分周期で
+`POST /internal/receipts/orphans/cleanup`を呼び出します。作成から24時間を過ぎた
+PENDING/FAILED画像を1回最大100件回収し、Storage削除失敗時は次回へ再試行します。
 
 レシート画像アップロードを有効にする環境では、非公開Cloud Storage bucketを用意し、
 `RECEIPT_STORAGE_BUCKET`にbucket名を設定します。DBには公開URLや署名付きURLではなく、
@@ -83,7 +85,7 @@ RECEIPT_STORAGE_BUCKET=your-private-receipt-bucket
 ```
 
 バックエンドのApplication Default Credentialsは署名可能なservice account identityを
-使用し、そのidentityへ対象bucketのobject作成・metadata取得権限と、必要に応じて自身の
+使用し、そのidentityへ対象bucketのobject作成・metadata取得・削除権限と、必要に応じて自身の
 `iam.serviceAccounts.signBlob`権限を付与してください。Cloud Runでは実行service accountを
 使用し、長期service account鍵を配置しません。ローカル確認では署名可能なservice accountの
 impersonationなどでADCを用意します。

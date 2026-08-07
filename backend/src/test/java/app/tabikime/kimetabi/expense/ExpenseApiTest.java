@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
 import java.util.List;
 import java.util.UUID;
@@ -102,9 +103,83 @@ class ExpenseApiTest {
 
         assertThat(singleLong("SELECT revision FROM trip WHERE id = 1")).isEqualTo(1);
         assertThat(singleLong("""
+                        SELECT COUNT(*) FROM audit_event
+                        WHERE trip_id = 1 AND action = 'EXPENSE_DRAFT_CREATED'
+                        """)).isEqualTo(1);
+        assertThat(singleLong("""
                         SELECT COUNT(*) FROM outbox_event
                         WHERE trip_id = 1 AND event_type = 'EXPENSE_DRAFT_CREATED'
                         """)).isEqualTo(1);
+    }
+
+    @Test
+    void replaysExpenseDraftCreationAndRejectsKeyReuseWithDifferentPayload() throws Exception {
+        UUID key = UUID.randomUUID();
+        String request = "{\"amount\":1200,\"source\":\"MANUAL\"}";
+
+        MvcResult first = mockMvc.perform(post("/api/trips/1/expenses")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request)
+                        .with(principal("member-a")))
+                .andExpect(status().isCreated())
+                .andReturn();
+        mockMvc.perform(post("/api/trips/1/expenses")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request)
+                        .with(principal("member-a")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(content().json(first.getResponse().getContentAsString()));
+
+        assertThat(singleLong("SELECT COUNT(*) FROM expense")).isEqualTo(1);
+        assertThat(singleLong("SELECT COUNT(*) FROM audit_event")).isEqualTo(1);
+        assertThat(singleLong("SELECT COUNT(*) FROM outbox_event")).isEqualTo(1);
+        assertThat(singleLong("SELECT revision FROM trip WHERE id = 1")).isEqualTo(1);
+
+        mockMvc.perform(post("/api/trips/1/expenses")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":1300,\"source\":\"MANUAL\"}")
+                        .with(principal("member-a")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"));
+    }
+
+    @Test
+    void exposesOfflineRetryDispositionThroughStableProblemResponses() throws Exception {
+        mockMvc.perform(post("/api/trips/1/expenses")
+                        .header("Idempotency-Key", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":100}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+
+        mockMvc.perform(post("/api/trips/1/expenses")
+                        .header("Idempotency-Key", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}")
+                        .with(principal("member-a")))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("request"));
+
+        createDraft("member-a", "{\"amount\":100}");
+        mockMvc.perform(patch("/api/trips/1/expenses/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":0,\"amount\":101}")
+                        .with(principal("member-a")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(1));
+        mockMvc.perform(patch("/api/trips/1/expenses/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":0,\"amount\":102}")
+                        .with(principal("member-a")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("VERSION_CONFLICT"))
+                .andExpect(jsonPath("$.currentVersion").value(1))
+                .andExpect(jsonPath("$.current.amount").value(101));
     }
 
     @Test

@@ -49,6 +49,8 @@ kimetabi:
   receipt-storage:
     bucket: ${RECEIPT_STORAGE_BUCKET:}
     upload-url-ttl: 10m
+    orphan-retention: 24h
+    orphan-cleanup-batch-size: 100
   secrets:
     project-id: ${GOOGLE_CLOUD_PROJECT:}
   url-fetch:

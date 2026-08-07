@@ -52,4 +52,9 @@ final class GoogleCloudReceiptStorageGateway implements ReceiptStorageGateway {
         if (blob == null || !blob.exists()) return Optional.empty();
         return Optional.of(new StoredObject(blob.getContentType(), blob.getSize()));
     }
+
+    @Override
+    public void delete(String objectKey) {
+        storage.delete(bucket, objectKey);
+    }
 }

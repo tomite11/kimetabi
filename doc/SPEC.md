@@ -422,6 +422,10 @@ CREATE TABLE outbox_event (
   署名付きURL、画像の秘密情報を監査JSONへ保存しない
 - 旅行に `vote_visibility`、候補に作成者・メモ・自由タグ、支出に作成者、
   画像にアップロード状態を持たせる
+- `PENDING` / `FAILED` の領収書画像は作成から24時間保持し、Cloud Schedulerから
+  30分周期で1回最大100件を回収する。Storage objectの削除成功（既に存在しない場合を
+  含む）後だけDB行を削除し、Storage削除失敗時はDB行を保持して次回再試行する。
+  `UPLOADED` は回収対象にしない
 - 旅行横断のID取り違えをDBでも防ぐため、旅行配下の主要な外部キーは
   `(resource_id, trip_id)` の複合外部キーとする
 - 候補は現在有効なmetadata取得要求のOutbox event IDを保持し、明示的な再取得後に
@@ -1280,6 +1284,7 @@ POST   /api/trips/{tripId}/settlements                  精算DRAFT作成
 POST   /api/trips/{tripId}/settlements/{id}/confirmation 精算確定
 POST   /internal/tasks/candidates/{candidateId}/metadata Cloud Tasks専用
 POST   /internal/tasks/expenses/{expenseId}/ocr          Cloud Tasks専用
+POST   /internal/receipts/orphans/cleanup                 Cloud Scheduler専用
 POST   /internal/outbox/dispatch                          Cloud Scheduler専用
 ```
 
@@ -1289,7 +1294,8 @@ POST   /internal/outbox/dispatch                          Cloud Scheduler専用
 - 一覧はカーソルページングとし、初期画面に必要な集約データは旅行スナップショットでまとめて返す。WebSocketイベントを履歴取得APIの代わりにしない
 - エラーはProblem Details形式に統一し、`code`、`message`、`fieldErrors`、`currentVersion`、`traceId` を必要に応じて返す
 - 冪等性が必要な候補・支出作成は `Idempotency-Key` を必須にする
-- `/internal/tasks/**` と `/internal/outbox/**` は専用サービスアカウントのOIDCトークンだけを受け付け、Firebase利用者のIDトークンでは呼び出せない
+- `/internal/tasks/**` と `/internal/outbox/**`、`/internal/receipts/**` は専用サービス
+  アカウントのOIDCトークンだけを受け付け、Firebase利用者のIDトークンでは呼び出せない
 - 更新は `version` による楽観ロックを使い、競合時は `409 Conflict`
 - 認可失敗は、旅行の存在を外部へ漏らさない必要がある入口では `404 Not Found`、参加済みだが権限不足の場合は `403 Forbidden`
 

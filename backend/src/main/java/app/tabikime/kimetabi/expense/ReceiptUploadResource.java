@@ -9,7 +9,8 @@ record ReceiptUploadResource(
         UUID receiptId,
         URI uploadUrl,
         OffsetDateTime expiresAt,
-        Map<String, String> requiredHeaders
+        Map<String, String> requiredHeaders,
+        long expenseVersion
 ) {
     ReceiptUploadResource {
         requiredHeaders = Map.copyOf(requiredHeaders);

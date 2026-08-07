@@ -31,7 +31,7 @@ public class SecurityConfiguration {
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/internal/tasks/**")
                             .hasAuthority(InternalOidcAuthenticationFilter.TASK_AUTHORITY)
-                        .requestMatchers("/internal/outbox/**")
+                        .requestMatchers("/internal/outbox/**", "/internal/receipts/**")
                             .hasAuthority(InternalOidcAuthenticationFilter.SCHEDULER_AUTHORITY)
                         .requestMatchers("/actuator/**", "/api/**").authenticated()
                         .anyRequest().denyAll())

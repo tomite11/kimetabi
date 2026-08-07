@@ -16,6 +16,8 @@ public interface ReceiptStorageGateway {
 
     Optional<StoredObject> find(String objectKey);
 
+    void delete(String objectKey);
+
     record UploadCapability(URI url, Map<String, String> requiredHeaders) {
         public UploadCapability {
             requiredHeaders = Map.copyOf(requiredHeaders);

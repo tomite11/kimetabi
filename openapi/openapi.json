@@ -1757,6 +1757,43 @@
         }
       }
     },
+    "/internal/receipts/orphans/cleanup": {
+      "post": {
+        "operationId": "cleanupOrphanExpenseReceipts",
+        "tags": [
+          "Expenses"
+        ],
+        "security": [
+          {
+            "schedulerServiceOidc": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Orphan receipt cleanup summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptOrphanCleanupResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "description": "Storage deletion failed; database state is retained for retry"
+          }
+        }
+      }
+    },
     "/internal/outbox/dispatch": {
       "post": {
         "operationId": "dispatchPendingOutbox",
@@ -3689,7 +3726,8 @@
           "receiptId",
           "uploadUrl",
           "expiresAt",
-          "requiredHeaders"
+          "requiredHeaders",
+          "expenseVersion"
         ],
         "properties": {
           "receiptId": {
@@ -3710,6 +3748,9 @@
             "additionalProperties": {
               "type": "string"
             }
+          },
+          "expenseVersion": {
+            "$ref": "#/components/schemas/Version"
           }
         }
       },
@@ -3940,6 +3981,26 @@
           }
         }
       },
+      "ReceiptOrphanCleanupResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "selected",
+          "deleted"
+        ],
+        "properties": {
+          "selected": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "deleted": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          }
+        }
+      },
       "TripEventType": {
         "type": "string",
         "enum": [
@@ -3954,6 +4015,9 @@
           "SLOT_ADOPTION_CHANGED",
           "EXPENSE_DRAFT_CREATED",
           "EXPENSE_DRAFT_DELETED",
+          "EXPENSE_RECEIPT_UPLOAD_PREPARED",
+          "EXPENSE_RECEIPT_UPLOADED",
+          "EXPENSE_RECEIPT_ORPHAN_CLEANED",
           "EXPENSE_CONFIRMED",
           "EXPENSE_UPDATED",
           "SETTLEMENT_CONFIRMED",

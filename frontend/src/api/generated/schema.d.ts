@@ -556,6 +556,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/receipts/orphans/cleanup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cleanupOrphanExpenseReceipts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/outbox/dispatch": {
         parameters: {
             query?: never;
@@ -931,6 +947,7 @@ export interface components {
             requiredHeaders: {
                 [key: string]: string;
             };
+            expenseVersion: components["schemas"]["Version"];
         };
         /** @enum {string} */
         SettlementStatus: "DRAFT" | "CONFIRMED" | "COMPLETED" | "SUPERSEDED";
@@ -987,8 +1004,12 @@ export interface components {
             published: number;
             failed: number;
         };
+        ReceiptOrphanCleanupResult: {
+            selected: number;
+            deleted: number;
+        };
         /** @enum {string} */
-        TripEventType: "MEMBER_JOINED" | "MEMBER_ROLE_CHANGED" | "CANDIDATE_CREATED" | "CANDIDATE_UPDATED" | "CANDIDATE_METADATA_REQUESTED" | "CANDIDATE_METADATA_COMPLETED" | "CANDIDATE_METADATA_FAILED" | "CANDIDATE_VOTE_CHANGED" | "SLOT_ADOPTION_CHANGED" | "EXPENSE_DRAFT_CREATED" | "EXPENSE_DRAFT_DELETED" | "EXPENSE_CONFIRMED" | "EXPENSE_UPDATED" | "SETTLEMENT_CONFIRMED" | "SETTLEMENT_TRANSFER_UPDATED";
+        TripEventType: "MEMBER_JOINED" | "MEMBER_ROLE_CHANGED" | "CANDIDATE_CREATED" | "CANDIDATE_UPDATED" | "CANDIDATE_METADATA_REQUESTED" | "CANDIDATE_METADATA_COMPLETED" | "CANDIDATE_METADATA_FAILED" | "CANDIDATE_VOTE_CHANGED" | "SLOT_ADOPTION_CHANGED" | "EXPENSE_DRAFT_CREATED" | "EXPENSE_DRAFT_DELETED" | "EXPENSE_RECEIPT_UPLOAD_PREPARED" | "EXPENSE_RECEIPT_UPLOADED" | "EXPENSE_RECEIPT_ORPHAN_CLEANED" | "EXPENSE_CONFIRMED" | "EXPENSE_UPDATED" | "SETTLEMENT_CONFIRMED" | "SETTLEMENT_TRANSFER_UPDATED";
         TripEvent: {
             /** Format: uuid */
             eventId: string;
@@ -2285,6 +2306,36 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             422: components["responses"]["ValidationFailed"];
             /** @description Retryable failure or an unresolved retry policy */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    cleanupOrphanExpenseReceipts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Orphan receipt cleanup summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptOrphanCleanupResult"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            /** @description Storage deletion failed; database state is retained for retry */
             500: {
                 headers: {
                     [name: string]: unknown;

@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import app.tabikime.kimetabi.storage.ReceiptStorageGateway;
 import app.tabikime.kimetabi.storage.ReceiptStorageProperties;
+import app.tabikime.kimetabi.support.event.OutboxEventWriter;
 import app.tabikime.kimetabi.trip.MemberRole;
 import app.tabikime.kimetabi.trip.TripAuthorizationService;
 import app.tabikime.kimetabi.trip.TripForbiddenException;
@@ -25,6 +26,8 @@ class ExpenseReceiptUploadService {
     private final ReceiptStorageGateway storage;
     private final ReceiptStorageProperties properties;
     private final Clock clock;
+    private final AuditEventWriter auditWriter;
+    private final OutboxEventWriter eventWriter;
 
     ExpenseReceiptUploadService(
             ExpenseRepository expenseRepository,
@@ -32,7 +35,9 @@ class ExpenseReceiptUploadService {
             TripAuthorizationService authorization,
             ReceiptStorageGateway storage,
             ReceiptStorageProperties properties,
-            Clock clock
+            Clock clock,
+            AuditEventWriter auditWriter,
+            OutboxEventWriter eventWriter
     ) {
         this.expenseRepository = expenseRepository;
         this.receiptRepository = receiptRepository;
@@ -40,6 +45,8 @@ class ExpenseReceiptUploadService {
         this.storage = storage;
         this.properties = properties;
         this.clock = clock;
+        this.auditWriter = auditWriter;
+        this.eventWriter = eventWriter;
     }
 
     @Transactional
@@ -63,11 +70,23 @@ class ExpenseReceiptUploadService {
         receiptRepository.insert(
                 receiptId, tripId, expenseId, objectKey,
                 request.contentType(), request.byteSize());
+        if (!expenseRepository.incrementVersion(tripId, expenseId, expense.version())) {
+            throw new ExpenseVersionConflictException(
+                    expenseRepository.find(tripId, expenseId)
+                            .orElseThrow(TripNotFoundException::new));
+        }
+        ExpenseResource updated = expenseRepository.find(tripId, expenseId).orElseThrow();
+        auditWriter.write(tripId, actor.id(), "EXPENSE_RECEIPT_UPLOAD_PREPARED", expense, updated);
+        long revision = eventWriter.nextRevision(tripId);
+        eventWriter.write(
+                tripId, revision, "EXPENSE_RECEIPT_UPLOAD_PREPARED", "expense",
+                updated.id(), updated.version());
         return new ReceiptUploadResource(
                 receiptId,
                 capability.url(),
                 OffsetDateTime.now(clock).plus(properties.uploadUrlTtl()),
-                capability.requiredHeaders());
+                capability.requiredHeaders(),
+                updated.version());
     }
 
     @Transactional
@@ -105,7 +124,13 @@ class ExpenseReceiptUploadService {
                     expenseRepository.find(tripId, expenseId)
                             .orElseThrow(TripNotFoundException::new));
         }
-        return expenseRepository.find(tripId, expenseId).orElseThrow();
+        ExpenseResource updated = expenseRepository.find(tripId, expenseId).orElseThrow();
+        auditWriter.write(tripId, actor.id(), "EXPENSE_RECEIPT_UPLOADED", expense, updated);
+        long revision = eventWriter.nextRevision(tripId);
+        eventWriter.write(
+                tripId, revision, "EXPENSE_RECEIPT_UPLOADED", "expense",
+                updated.id(), updated.version());
+        return updated;
     }
 
     private void requireEditableDraft(

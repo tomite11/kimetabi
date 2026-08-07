@@ -40,5 +40,10 @@ public class ReceiptStorageConfiguration {
         public java.util.Optional<StoredObject> find(String objectKey) {
             throw new IllegalStateException("Receipt storage bucket is not configured");
         }
+
+        @Override
+        public void delete(String objectKey) {
+            throw new IllegalStateException("Receipt storage bucket is not configured");
+        }
     }
 }

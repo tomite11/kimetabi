@@ -110,7 +110,8 @@ class ExpenseReceiptUploadApiTest {
                 .andExpect(jsonPath("$.expiresAt").isNotEmpty())
                 .andExpect(jsonPath("$.requiredHeaders.Content-Type").value("image/webp"))
                 .andExpect(jsonPath("$.requiredHeaders.Content-Length").value("321"))
-                .andExpect(jsonPath("$.requiredHeaders.x-goog-if-generation-match").value("0"));
+                .andExpect(jsonPath("$.requiredHeaders.x-goog-if-generation-match").value("0"))
+                .andExpect(jsonPath("$.expenseVersion").value(1));
 
         String objectKey = jdbcClient.sql("SELECT object_key FROM expense_receipt")
                 .query(String.class).single();
@@ -133,24 +134,30 @@ class ExpenseReceiptUploadApiTest {
                 .readTree(response).get("receiptId").asText();
 
         storage.storedObject = Optional.of(new ReceiptStorageGateway.StoredObject("image/png", 512));
-        complete("member-a", 1, 1, receiptId, 0)
+        complete("member-a", 1, 1, receiptId, 1)
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("contentType"));
         assertThat(receiptStatus(receiptId)).isEqualTo("PENDING");
 
         storage.storedObject = Optional.of(new ReceiptStorageGateway.StoredObject("image/jpeg", 513));
-        complete("member-a", 1, 1, receiptId, 0)
+        complete("member-a", 1, 1, receiptId, 1)
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("byteSize"));
         assertThat(receiptStatus(receiptId)).isEqualTo("PENDING");
 
         storage.storedObject = Optional.of(new ReceiptStorageGateway.StoredObject("image/jpeg", 512));
-        complete("member-a", 1, 1, receiptId, 0)
+        complete("member-a", 1, 1, receiptId, 1)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.receipts[0].status").value("UPLOADED"))
                 .andExpect(jsonPath("$.receipts[0].contentType").value("image/jpeg"))
                 .andExpect(jsonPath("$.receipts[0].byteSize").value(512))
-                .andExpect(jsonPath("$.version").value(1));
+                .andExpect(jsonPath("$.version").value(2));
+        assertThat(countWhere("audit_event", "action IN ('EXPENSE_RECEIPT_UPLOAD_PREPARED', 'EXPENSE_RECEIPT_UPLOADED')"))
+                .isEqualTo(2);
+        assertThat(countWhere(
+                "outbox_event",
+                "event_type IN ('EXPENSE_RECEIPT_UPLOAD_PREPARED', 'EXPENSE_RECEIPT_UPLOADED')"))
+                .isEqualTo(2);
     }
 
     @Test
@@ -161,7 +168,7 @@ class ExpenseReceiptUploadApiTest {
                 .readTree(response).get("receiptId").asText();
         storage.storedObject = Optional.of(new ReceiptStorageGateway.StoredObject("image/png", 100));
 
-        complete("member-a", 1, 1, receiptId, 1)
+        complete("member-a", 1, 1, receiptId, 0)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("VERSION_CONFLICT"));
         insertExpense(2, 1, 2);
@@ -238,6 +245,11 @@ class ExpenseReceiptUploadApiTest {
         return jdbcClient.sql("SELECT COUNT(*) FROM " + table).query(Long.class).single();
     }
 
+    private long countWhere(String table, String predicate) {
+        return jdbcClient.sql("SELECT COUNT(*) FROM " + table + " WHERE " + predicate)
+                .query(Long.class).single();
+    }
+
     private String receiptStatus(String receiptId) {
         return jdbcClient.sql("SELECT upload_status FROM expense_receipt WHERE id = :id")
                 .param("id", java.util.UUID.fromString(receiptId)).query(String.class).single();
@@ -271,6 +283,10 @@ class ExpenseReceiptUploadApiTest {
         @Override
         public Optional<StoredObject> find(String objectKey) {
             return storedObject;
+        }
+
+        @Override
+        public void delete(String objectKey) {
         }
     }
 }
