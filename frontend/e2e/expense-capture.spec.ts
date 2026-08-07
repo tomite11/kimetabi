@@ -101,7 +101,5 @@ test("オフラインで金額を保存し復帰後に同じDRAFTを送信する
     fullPage: true,
   });
   await page.getByRole("button", { name: "確定して次へ" }).click();
-  await expect(
-    page.getByRole("heading", { name: "確定済み" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "確定済み" })).toBeVisible();
 });
