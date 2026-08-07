@@ -907,7 +907,9 @@ export interface components {
             source: "PLAN" | "MANUAL";
             /** @description Must be true when creating a photo-only DRAFT; an upload is prepared after creation */
             hasReceipt?: boolean;
-        } | unknown | {
+        } | {
+            amount: components["schemas"]["PositiveYen"];
+        } | {
             /** @constant */
             hasReceipt: true;
         };

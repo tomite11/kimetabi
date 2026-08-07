@@ -35,6 +35,33 @@ export const handlers = [
       { status: 201 },
     );
   }),
+  http.get("*/api/trips/42/expenses", () =>
+    HttpResponse.json({ items: [], nextCursor: null }),
+  ),
+  http.get("*/api/trips/42/expenses/share-preset", () =>
+    HttpResponse.json({
+      sourceExpenseId: 700,
+      allocationType: "EQUAL",
+      shares: [
+        { memberId: 7, weight: 1 },
+        { memberId: 8, weight: 1 },
+      ],
+    }),
+  ),
+  http.patch("*/api/trips/42/expenses/:expenseId", async ({ request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    return HttpResponse.json({
+      ...amountExpenseDraft,
+      ...body,
+      status: "CONFIRMED",
+      currency: "JPY",
+      baseAmount: body.amount,
+      version: 1,
+      shares: ((body.shares as Array<Record<string, unknown>>) ?? []).map(
+        (share) => ({ ...share, finalAmount: 640 }),
+      ),
+    });
+  }),
   http.get("*/api/trips/42/slots/101", () =>
     HttpResponse.json(transportSlotDetail),
   ),

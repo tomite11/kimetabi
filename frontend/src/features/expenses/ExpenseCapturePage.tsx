@@ -1,11 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useForm } from "react-hook-form";
 import { useParams } from "react-router";
 import { z } from "zod";
 
-import { createAmountExpenseDraft } from "./expenseApi";
+import { useAuth } from "../../auth/AuthProvider";
+import { enqueueExpenseDraft } from "./expenseQueue";
+import { useExpenseQueue } from "./useExpenseQueue";
 import {
   compressReceiptImage,
   type CompressedReceipt,
@@ -23,11 +24,15 @@ type Mode = "photo" | "amount";
 
 export function ExpenseCapturePage() {
   const tripId = Number(useParams().tripId);
+  const { uid } = useAuth();
   const [mode, setMode] = useState<Mode>("photo");
   const [receipt, setReceipt] = useState<CompressedReceipt>();
   const [previewUrl, setPreviewUrl] = useState<string>();
   const [imageError, setImageError] = useState<string>();
   const [isCompressing, setIsCompressing] = useState(false);
+  const [saveState, setSaveState] = useState<
+    "idle" | "saving" | "queued" | "error"
+  >("idle");
   const amountInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const libraryInputRef = useRef<HTMLInputElement | null>(null);
@@ -37,10 +42,7 @@ export function ExpenseCapturePage() {
     formState: { errors },
   } = useForm<AmountForm>({ resolver: zodResolver(amountSchema) });
   const amountRegistration = register("amount");
-  const mutation = useMutation({
-    mutationFn: (values: AmountForm) =>
-      createAmountExpenseDraft(tripId, values.amount),
-  });
+  const queue = useExpenseQueue(tripId);
 
   useEffect(
     () => () => {
@@ -55,7 +57,31 @@ export function ExpenseCapturePage() {
 
   function chooseMode(nextMode: Mode) {
     setMode(nextMode);
-    mutation.reset();
+    setSaveState("idle");
+  }
+
+  async function saveDraft(
+    payload: { amount?: number; hasReceipt?: boolean },
+    blob?: Blob,
+  ) {
+    setSaveState("saving");
+    try {
+      await enqueueExpenseDraft(
+        uid,
+        tripId,
+        {
+          ...payload,
+          paidAt: new Date().toISOString(),
+          source: "MANUAL",
+        },
+        blob,
+      );
+      setSaveState("queued");
+      await queue.refetch();
+      if (navigator.onLine) void queue.flush();
+    } catch {
+      setSaveState("error");
+    }
   }
 
   async function handleImage(file?: File) {
@@ -190,15 +216,37 @@ export function ExpenseCapturePage() {
               <p className={styles.success} role="status">
                 保存準備ができました（{receipt.width}×{receipt.height}px・
                 {Math.ceil(receipt.blob.size / 1024)}
-                KB）。この画面を閉じずに続けてください。
+                KB）。端末へ保存できます。
               </p>
+              <button
+                className={styles.submit}
+                type="button"
+                disabled={saveState === "saving"}
+                onClick={() =>
+                  void saveDraft({ hasReceipt: true }, receipt.blob)
+                }
+              >
+                {saveState === "saving" ? "保存しています…" : "写真だけで保存"}
+              </button>
             </>
+          ) : null}
+          {saveState === "queued" ? (
+            <p className={styles.success} role="status">
+              端末に保存しました。オフラインでも大丈夫です。通信復帰後に自動送信します。
+            </p>
+          ) : null}
+          {saveState === "error" ? (
+            <p className={styles.error} role="alert">
+              端末へ保存できませんでした。空き容量を確認してください。
+            </p>
           ) : null}
         </div>
       ) : (
         <form
           className={styles.panel}
-          onSubmit={handleSubmit((values) => mutation.mutate(values))}
+          onSubmit={handleSubmit(
+            (values) => void saveDraft({ amount: values.amount }),
+          )}
           noValidate
         >
           <label className={styles.amountLabel} htmlFor="expense-amount">
@@ -226,12 +274,12 @@ export function ExpenseCapturePage() {
               {errors.amount.message}
             </p>
           ) : null}
-          {mutation.isError ? (
+          {saveState === "error" ? (
             <p className={styles.error} role="alert">
               記録できませんでした。通信状態を確認して、もう一度お試しください。
             </p>
           ) : null}
-          {mutation.isSuccess ? (
+          {saveState === "queued" ? (
             <p className={styles.success} role="status">
               金額を未確定の支出として記録しました。あとで支払った人と割り勘を確認できます。
             </p>
@@ -239,9 +287,9 @@ export function ExpenseCapturePage() {
           <button
             className={styles.submit}
             type="submit"
-            disabled={mutation.isPending}
+            disabled={saveState === "saving"}
           >
-            {mutation.isPending ? "記録しています…" : "未確定として記録"}
+            {saveState === "saving" ? "記録しています…" : "未確定として記録"}
           </button>
         </form>
       )}

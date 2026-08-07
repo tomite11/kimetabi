@@ -2,7 +2,9 @@ import createClient from "openapi-fetch";
 
 import type { paths } from "./generated/schema";
 
-export type AccessTokenProvider = () => Promise<string | undefined>;
+export type AccessTokenProvider = (
+  forceRefresh?: boolean,
+) => Promise<string | undefined>;
 
 export const apiBaseUrl =
   import.meta.env.VITE_API_BASE_URL || globalThis.location?.origin || "";
@@ -40,3 +42,7 @@ export function createApiClient(
 export const apiClient = createApiClient(async () =>
   currentAccessTokenProvider ? currentAccessTokenProvider() : undefined,
 );
+
+export async function refreshAccessToken() {
+  return currentAccessTokenProvider?.(true);
+}

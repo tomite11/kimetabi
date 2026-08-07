@@ -15,13 +15,25 @@ export interface PendingOperation {
   createdAt: string;
   retryCount: number;
   state: PendingOperationState;
-  operationType?: "CREATE_CANDIDATE";
+  operationType?:
+    "CREATE_CANDIDATE" | "CREATE_EXPENSE_DRAFT" | "CONFIRM_EXPENSE";
   resourceId?: number;
+  receiptBlobId?: string;
   lastProblem?: string;
+}
+
+export interface ReceiptBlob {
+  id: string;
+  firebaseUid: string;
+  tripId: number;
+  blob: Blob;
+  contentType: "image/jpeg" | "image/png" | "image/webp";
+  createdAt: string;
 }
 
 export class KimetabiDatabase extends Dexie {
   pendingOperations!: EntityTable<PendingOperation, "id">;
+  receiptBlobs!: EntityTable<ReceiptBlob, "id">;
 
   constructor() {
     super("kimetabi");
@@ -32,6 +44,11 @@ export class KimetabiDatabase extends Dexie {
     this.version(2).stores({
       pendingOperations:
         "++id, [firebaseUid+tripId], createdAt, state, idempotencyKey, operationType",
+    });
+    this.version(3).stores({
+      pendingOperations:
+        "++id, [firebaseUid+tripId], createdAt, state, idempotencyKey, operationType, receiptBlobId",
+      receiptBlobs: "id, [firebaseUid+tripId], createdAt",
     });
   }
 }

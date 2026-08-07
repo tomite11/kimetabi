@@ -3562,11 +3562,18 @@
         "additionalProperties": false,
         "anyOf": [
           {
+            "type": "object",
             "required": [
               "amount"
-            ]
+            ],
+            "properties": {
+              "amount": {
+                "$ref": "#/components/schemas/PositiveYen"
+              }
+            }
           },
           {
+            "type": "object",
             "properties": {
               "hasReceipt": {
                 "const": true

@@ -108,6 +108,6 @@ describe("TripShell", () => {
       "aria-current",
       "page",
     );
-    expect(screen.getByRole("button", { name: "候補を追加" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "支出を記録" })).toBeVisible();
   });
 });

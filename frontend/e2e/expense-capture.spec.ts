@@ -55,3 +55,53 @@ test("モバイルで撮影fallbackと金額入力を操作できる", async ({
   });
   expect(consoleErrors).toEqual([]);
 });
+
+test("オフラインで金額を保存し復帰後に同じDRAFTを送信する", async ({
+  page,
+  context,
+}, testInfo) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/t/42/expenses/new");
+  await expect(
+    page.getByRole("heading", { name: "支出を記録する" }),
+  ).toBeVisible();
+  await context.setOffline(true);
+  await page.getByRole("button", { name: /金額を入れる/ }).click();
+  await page.getByRole("spinbutton", { name: "支出の総額" }).fill("2480");
+  await page.getByRole("button", { name: "未確定として記録" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "未確定の支出として記録",
+  );
+
+  await context.setOffline(false);
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await page.getByRole("link", { name: "支出" }).click();
+  await expect(
+    page.getByRole("heading", { name: "未確定の支出" }),
+  ).toBeVisible();
+  const draft = page.getByRole("button", { name: /2,480/ });
+  await expect(draft).toBeVisible();
+  await draft.focus();
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("heading", { name: "この支出を確定" }),
+  ).toBeFocused();
+  await expect(page.getByText(/1人あたり/)).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    )
+    .toBe(true);
+  await page.screenshot({
+    path: testInfo.outputPath("expense-confirm-mobile.png"),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "確定して次へ" }).click();
+  await expect(
+    page.getByRole("heading", { name: "確定済み" }),
+  ).toBeVisible();
+});

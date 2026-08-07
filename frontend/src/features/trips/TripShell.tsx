@@ -3,6 +3,7 @@ import { useRef } from "react";
 import {
   NavLink,
   Outlet,
+  useLocation,
   useNavigate,
   useOutletContext,
   useParams,
@@ -37,6 +38,7 @@ export function TripShell() {
   const { tripId: value } = useParams();
   const tripId = Number(value);
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const memberTriggerRef = useRef<HTMLButtonElement>(null);
   const { isAnonymous } = useAuth();
@@ -74,6 +76,11 @@ export function TripShell() {
 
   const snapshot = snapshotQuery.data;
   const phase = phaseCopy[snapshot.trip.phase];
+  const isExpenseRoute = location.pathname.startsWith(`/t/${tripId}/expenses`);
+  const primaryAction = isExpenseRoute ? "支出を記録" : phase.action;
+  const primaryTarget = isExpenseRoute
+    ? `/t/${tripId}/expenses/new`
+    : actionTarget(tripId, snapshot.trip.phase);
   return (
     <div className={styles.shell}>
       <header className={styles.tripHeader}>
@@ -161,11 +168,9 @@ export function TripShell() {
         <button
           className={styles.primaryAction}
           type="button"
-          onClick={() =>
-            void navigate(actionTarget(tripId, snapshot.trip.phase))
-          }
+          onClick={() => void navigate(primaryTarget)}
         >
-          {phase.action}
+          {primaryAction}
         </button>
       </footer>
     </div>

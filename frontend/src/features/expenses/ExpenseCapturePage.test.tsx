@@ -1,4 +1,4 @@
-import { cleanup, screen } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -6,10 +6,13 @@ import { MemoryRouter, Route, Routes } from "react-router";
 
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { server } from "../../test/mocks/server";
+import { database } from "../../offline/database";
 import { ExpenseCapturePage } from "./ExpenseCapturePage";
 
-afterEach(() => {
+afterEach(async () => {
   cleanup();
+  await database.pendingOperations.clear();
+  await database.receiptBlobs.clear();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -104,7 +107,9 @@ describe("ExpenseCapturePage", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(
       "未確定の支出として記録",
     );
-    expect(body).toMatchObject({ amount: 1280, source: "MANUAL" });
+    await waitFor(() =>
+      expect(body).toMatchObject({ amount: 1280, source: "MANUAL" }),
+    );
     expect(idempotencyKey).not.toBe("");
   });
 

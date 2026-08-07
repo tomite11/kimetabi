@@ -50,7 +50,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
       .then(ensureFirebaseUser)
       .then((user) => {
         if (!active) return;
-        setAccessTokenProvider(() => user.getIdToken());
+        setAccessTokenProvider((forceRefresh) =>
+          user.getIdToken(Boolean(forceRefresh)),
+        );
         setState({
           uid: user.uid,
           isAnonymous: user.isAnonymous,
