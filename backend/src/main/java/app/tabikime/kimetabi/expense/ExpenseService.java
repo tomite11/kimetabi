@@ -3,6 +3,7 @@ package app.tabikime.kimetabi.expense;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +40,45 @@ class ExpenseService {
     ExpenseResource get(String firebaseUid, long tripId, long expenseId) {
         authorization.require(firebaseUid, tripId, TripPermission.VIEW_TRIP);
         return repository.find(tripId, expenseId).orElseThrow(TripNotFoundException::new);
+    }
+
+    @Transactional(readOnly = true)
+    ExpensePage list(
+            String firebaseUid,
+            long tripId,
+            String cursor,
+            int limit,
+            ExpenseStatus status
+    ) {
+        authorization.require(firebaseUid, tripId, TripPermission.VIEW_TRIP);
+        ExpenseCursor.Decoded decoded = cursor == null ? null : ExpenseCursor.decode(cursor);
+        List<ExpenseRepository.ListedExpense> rows = repository.list(
+                tripId,
+                status,
+                decoded == null ? null : decoded.createdAt(),
+                decoded == null ? null : decoded.id(),
+                limit + 1);
+        boolean hasNext = rows.size() > limit;
+        List<ExpenseRepository.ListedExpense> pageRows = hasNext
+                ? rows.subList(0, limit) : rows;
+        String nextCursor = null;
+        if (hasNext) {
+            ExpenseRepository.ListedExpense last = pageRows.get(pageRows.size() - 1);
+            nextCursor = ExpenseCursor.encode(last.createdAt(), last.resource().id());
+        }
+        return new ExpensePage(
+                pageRows.stream().map(ExpenseRepository.ListedExpense::resource).toList(),
+                nextCursor);
+    }
+
+    @Transactional(readOnly = true)
+    Optional<ExpenseSharePresetResource> previousSharePreset(String firebaseUid, long tripId) {
+        authorization.require(firebaseUid, tripId, TripPermission.VIEW_TRIP);
+        return repository.findLatestConfirmed(tripId).map(expense ->
+                new ExpenseSharePresetResource(
+                        expense.id(),
+                        expense.allocationType(),
+                        toInputs(expense.shares())));
     }
 
     @Transactional

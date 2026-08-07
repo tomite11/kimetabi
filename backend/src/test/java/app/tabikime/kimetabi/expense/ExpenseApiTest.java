@@ -23,6 +23,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -268,6 +269,100 @@ class ExpenseApiTest {
                         .with(principal("organizer-a")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("RESOURCE_CONFLICT"));
+    }
+
+    @Test
+    void listsExpensesWithOpaqueCursorStatusFilterAndTripAuthorization() throws Exception {
+        createDraft("member-a", "{\"amount\":100}");
+        createDraft("member-a", "{\"amount\":200,\"paidAt\":\"2030-08-01T12:00:00+09:00\"}");
+        mockMvc.perform(patch("/api/trips/1/expenses/2")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "version":0,
+                                  "payerId":2,
+                                  "allocationType":"EQUAL",
+                                  "shares":[{"memberId":1},{"memberId":2}],
+                                  "status":"CONFIRMED"
+                                }
+                                """)
+                        .with(principal("member-a")))
+                .andExpect(status().isOk());
+        createDraft("member-a", "{\"amount\":300}");
+
+        MvcResult firstPage = mockMvc.perform(get("/api/trips/1/expenses?limit=2")
+                        .with(principal("member-a")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].id").value(3))
+                .andExpect(jsonPath("$.items[1].id").value(2))
+                .andExpect(jsonPath("$.nextCursor").isString())
+                .andReturn();
+        String cursor = com.jayway.jsonpath.JsonPath.read(
+                firstPage.getResponse().getContentAsString(), "$.nextCursor");
+
+        mockMvc.perform(get("/api/trips/1/expenses")
+                        .queryParam("cursor", cursor)
+                        .queryParam("limit", "2")
+                        .with(principal("member-a")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(1))
+                .andExpect(jsonPath("$.nextCursor").doesNotExist());
+
+        mockMvc.perform(get("/api/trips/1/expenses?status=CONFIRMED")
+                        .with(principal("member-a")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(2));
+
+        mockMvc.perform(get("/api/trips/1/expenses?cursor=not-a-cursor")
+                        .with(principal("member-a")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        mockMvc.perform(get("/api/trips/1/expenses").with(principal("owner-b")))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void returnsSharesFromLatestConfirmedExpenseAsPreviousPreset() throws Exception {
+        mockMvc.perform(get("/api/trips/1/expenses/share-preset")
+                        .with(principal("member-a")))
+                .andExpect(status().isNoContent());
+
+        createDraft("member-a", "{\"amount\":100,\"paidAt\":\"2030-08-01T12:00:00+09:00\"}");
+        mockMvc.perform(patch("/api/trips/1/expenses/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "version":0,
+                                  "payerId":2,
+                                  "allocationType":"WEIGHT",
+                                  "shares":[
+                                    {"memberId":1,"weight":2},
+                                    {"memberId":2,"weight":1}
+                                  ],
+                                  "status":"CONFIRMED"
+                                }
+                                """)
+                        .with(principal("member-a")))
+                .andExpect(status().isOk());
+        createDraft("member-a", "{\"amount\":999}");
+
+        mockMvc.perform(get("/api/trips/1/expenses/share-preset")
+                        .with(principal("member-a")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sourceExpenseId").value(1))
+                .andExpect(jsonPath("$.allocationType").value("WEIGHT"))
+                .andExpect(jsonPath("$.shares.length()").value(2))
+                .andExpect(jsonPath("$.shares[0].memberId").value(1))
+                .andExpect(jsonPath("$.shares[0].weight").value(2))
+                .andExpect(jsonPath("$.shares[0].fixedAmount").doesNotExist())
+                .andExpect(jsonPath("$.shares[1].memberId").value(2));
+
+        mockMvc.perform(get("/api/trips/1/expenses/share-preset")
+                        .with(principal("owner-b")))
+                .andExpect(status().isNotFound());
     }
 
     private void confirmAsMember() throws Exception {

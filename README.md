@@ -74,6 +74,20 @@ Cloud Tasksのpayloadには`eventId`と`candidateId`だけを入れ、raw URLは
 `/internal/tasks/**`と`/internal/outbox/**`は、それぞれ対応するOIDC identity以外を
 拒否します。
 
+レシート画像アップロードを有効にする環境では、非公開Cloud Storage bucketを用意し、
+`RECEIPT_STORAGE_BUCKET`にbucket名を設定します。DBには公開URLや署名付きURLではなく、
+サーバー生成のobject keyだけを保存します。アップロードURLの有効期限は10分です。
+
+```shell
+RECEIPT_STORAGE_BUCKET=your-private-receipt-bucket
+```
+
+バックエンドのApplication Default Credentialsは署名可能なservice account identityを
+使用し、そのidentityへ対象bucketのobject作成・metadata取得権限と、必要に応じて自身の
+`iam.serviceAccounts.signBlob`権限を付与してください。Cloud Runでは実行service accountを
+使用し、長期service account鍵を配置しません。ローカル確認では署名可能なservice accountの
+impersonationなどでADCを用意します。
+
 設定は環境変数に加え、Cloud Runでマウントする
 `/var/run/secrets/kimetabi/` のconfig treeから外部注入できます。
 `/actuator/health` は未認証で公開し、その他のActuator endpointは認証を要求します。

@@ -102,3 +102,19 @@ export const transportSlotDetail = {
     },
   },
 } satisfies components["schemas"]["SlotDetail"];
+
+export const amountExpenseDraft = {
+  id: 801,
+  createdByMemberId: 7,
+  payerId: null,
+  amount: 1280,
+  currency: null,
+  baseAmount: null,
+  paidAt: "2026-08-07T01:00:00Z",
+  source: "MANUAL",
+  status: "DRAFT",
+  allocationType: null,
+  receipts: [],
+  shares: [],
+  version: 0,
+} satisfies components["schemas"]["Expense"];

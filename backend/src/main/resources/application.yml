@@ -46,6 +46,9 @@ kimetabi:
       service-account-email: ${SCHEDULER_SERVICE_ACCOUNT_EMAIL:}
   proxy:
     trust-google-forwarded-for: ${TRUST_GOOGLE_FORWARDED_FOR:false}
+  receipt-storage:
+    bucket: ${RECEIPT_STORAGE_BUCKET:}
+    upload-url-ttl: 10m
   secrets:
     project-id: ${GOOGLE_CLOUD_PROJECT:}
   url-fetch:

@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 
 import app.tabikime.kimetabi.internal.InternalOidcProperties;
 import app.tabikime.kimetabi.async.CloudTasksProperties;
+import app.tabikime.kimetabi.storage.ReceiptStorageProperties;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties({
@@ -15,6 +16,7 @@ import app.tabikime.kimetabi.async.CloudTasksProperties;
         CloudTasksProperties.class,
         InternalOidcProperties.class,
         ProxyProperties.class,
+        ReceiptStorageProperties.class,
         SecretManagerProperties.class
 })
 public class PlatformConfiguration {

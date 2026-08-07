@@ -7,7 +7,11 @@ export default defineConfig({
   testDir: "./e2e",
   testMatch: realApi
     ? "real-api-trip.spec.ts"
-    : ["trip-list-empty-state.spec.ts", "guest-trip-shell.spec.ts"],
+    : [
+        "trip-list-empty-state.spec.ts",
+        "guest-trip-shell.spec.ts",
+        "expense-capture.spec.ts",
+      ],
   fullyParallel: true,
   reporter: "list",
   use: {

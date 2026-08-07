@@ -1,6 +1,7 @@
 package app.tabikime.kimetabi.expense;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -51,6 +52,58 @@ class ExpenseRepository {
         return find(tripId, expenseId, true);
     }
 
+    List<ListedExpense> list(
+            long tripId,
+            ExpenseStatus status,
+            Instant cursorCreatedAt,
+            Long cursorId,
+            int limit
+    ) {
+        List<ExpensePosition> positions = jdbcClient.sql("""
+                        SELECT id, created_at
+                        FROM expense
+                        WHERE trip_id = :tripId
+                          AND (CAST(:status AS VARCHAR) IS NULL OR status = :status)
+                          AND (
+                            CAST(:cursorCreatedAt AS TIMESTAMPTZ) IS NULL
+                            OR (created_at, id) < (
+                              CAST(:cursorCreatedAt AS TIMESTAMPTZ),
+                              CAST(:cursorId AS BIGINT)
+                            )
+                          )
+                        ORDER BY created_at DESC, id DESC
+                        LIMIT :limit
+                        """)
+                .param("tripId", tripId)
+                .param("status", status == null ? null : status.name())
+                .param("cursorCreatedAt", cursorCreatedAt == null ? null
+                        : OffsetDateTime.ofInstant(cursorCreatedAt, java.time.ZoneOffset.UTC))
+                .param("cursorId", cursorId)
+                .param("limit", limit)
+                .query((resultSet, rowNumber) -> new ExpensePosition(
+                        resultSet.getLong("id"),
+                        resultSet.getObject("created_at", OffsetDateTime.class).toInstant()))
+                .list();
+        return positions.stream()
+                .map(position -> new ListedExpense(
+                        find(tripId, position.id()).orElseThrow(), position.createdAt()))
+                .toList();
+    }
+
+    Optional<ExpenseResource> findLatestConfirmed(long tripId) {
+        return jdbcClient.sql("""
+                        SELECT id
+                        FROM expense
+                        WHERE trip_id = :tripId AND status = 'CONFIRMED'
+                        ORDER BY confirmed_at DESC, id DESC
+                        LIMIT 1
+                        """)
+                .param("tripId", tripId)
+                .query(Long.class)
+                .optional()
+                .flatMap(id -> find(tripId, id));
+    }
+
     private Optional<ExpenseResource> find(long tripId, long expenseId, boolean lock) {
         String suffix = lock ? " FOR UPDATE" : "";
         return jdbcClient.sql("""
@@ -74,7 +127,7 @@ class ExpenseRepository {
                         ExpenseSource.valueOf(resultSet.getString("source")),
                         ExpenseStatus.valueOf(resultSet.getString("status")),
                         enumValue(AllocationType.class, resultSet.getString("allocation_type")),
-                        List.of(),
+                        receipts(expenseId),
                         shares(expenseId),
                         resultSet.getLong("version")))
                 .optional();
@@ -113,6 +166,18 @@ class ExpenseRepository {
                 .param("paidAt", paidAt)
                 .param("allocationType", allocationType == null ? null : allocationType.name())
                 .param("status", status.name())
+                .param("tripId", tripId)
+                .param("expenseId", expenseId)
+                .param("version", expectedVersion)
+                .update() == 1;
+    }
+
+    boolean incrementVersion(long tripId, long expenseId, long expectedVersion) {
+        return jdbcClient.sql("""
+                        UPDATE expense
+                        SET version = version + 1, updated_at = CURRENT_TIMESTAMP
+                        WHERE trip_id = :tripId AND id = :expenseId AND version = :version
+                        """)
                 .param("tripId", tripId)
                 .param("expenseId", expenseId)
                 .param("version", expectedVersion)
@@ -195,7 +260,29 @@ class ExpenseRepository {
                 .list();
     }
 
+    private List<ExpenseReceiptResource> receipts(long expenseId) {
+        return jdbcClient.sql("""
+                        SELECT id, content_type, byte_size, upload_status
+                        FROM expense_receipt
+                        WHERE expense_id = :expenseId
+                        ORDER BY created_at, id
+                        """)
+                .param("expenseId", expenseId)
+                .query((resultSet, rowNumber) -> new ExpenseReceiptResource(
+                        resultSet.getObject("id", java.util.UUID.class),
+                        resultSet.getString("content_type"),
+                        resultSet.getLong("byte_size"),
+                        resultSet.getString("upload_status")))
+                .list();
+    }
+
     private static <T extends Enum<T>> T enumValue(Class<T> type, String value) {
         return value == null ? null : Enum.valueOf(type, value);
+    }
+
+    record ListedExpense(ExpenseResource resource, Instant createdAt) {
+    }
+
+    private record ExpensePosition(long id, Instant createdAt) {
     }
 }

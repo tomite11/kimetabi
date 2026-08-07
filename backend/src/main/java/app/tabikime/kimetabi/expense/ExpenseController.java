@@ -4,7 +4,9 @@ import java.net.URI;
 import java.util.UUID;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
@@ -52,6 +54,27 @@ public class ExpenseController {
             @PathVariable @Min(1) long expenseId
     ) {
         return service.get(principal.firebaseUid(), tripId, expenseId);
+    }
+
+    @GetMapping
+    ExpensePage list(
+            @AuthenticationPrincipal AppPrincipal principal,
+            @PathVariable @Min(1) long tripId,
+            @RequestParam(required = false) @Size(max = 500) String cursor,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit,
+            @RequestParam(required = false) ExpenseStatus status
+    ) {
+        return service.list(principal.firebaseUid(), tripId, cursor, limit, status);
+    }
+
+    @GetMapping("/share-preset")
+    ResponseEntity<ExpenseSharePresetResource> getPreviousSharePreset(
+            @AuthenticationPrincipal AppPrincipal principal,
+            @PathVariable @Min(1) long tripId
+    ) {
+        return service.previousSharePreset(principal.firebaseUid(), tripId)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @PatchMapping("/{expenseId}")

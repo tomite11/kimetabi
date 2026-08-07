@@ -1163,6 +1163,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -1221,6 +1224,40 @@
           },
           "422": {
             "$ref": "#/components/responses/ValidationFailed"
+          }
+        }
+      }
+    },
+    "/api/trips/{tripId}/expenses/share-preset": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TripId"
+        }
+      ],
+      "get": {
+        "operationId": "getPreviousExpenseSharePreset",
+        "tags": [
+          "Expenses"
+        ],
+        "responses": {
+          "200": {
+            "description": "Share inputs copied from the latest confirmed expense",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseSharePreset"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No confirmed expense is available for a previous-share preset"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         }
       }
@@ -3590,6 +3627,31 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      },
+      "ExpenseSharePreset": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sourceExpenseId",
+          "allocationType",
+          "shares"
+        ],
+        "properties": {
+          "sourceExpenseId": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "allocationType": {
+            "$ref": "#/components/schemas/AllocationType"
+          },
+          "shares": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/ExpenseShareInput"
+            }
           }
         }
       },

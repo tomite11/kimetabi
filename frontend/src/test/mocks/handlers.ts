@@ -1,6 +1,7 @@
 import { http, HttpResponse } from "msw";
 
 import {
+  amountExpenseDraft,
   emptyTripPage,
   tokyoTripSnapshot,
   transportSlotDetail,
@@ -27,6 +28,13 @@ export const handlers = [
     );
   }),
   http.get("*/api/trips/42", () => HttpResponse.json(tokyoTripSnapshot)),
+  http.post("*/api/trips/42/expenses", async ({ request }) => {
+    const body = (await request.json()) as { amount?: number };
+    return HttpResponse.json(
+      { ...amountExpenseDraft, amount: body.amount ?? null },
+      { status: 201 },
+    );
+  }),
   http.get("*/api/trips/42/slots/101", () =>
     HttpResponse.json(transportSlotDetail),
   ),

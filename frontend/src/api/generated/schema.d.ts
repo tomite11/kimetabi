@@ -385,6 +385,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/trips/{tripId}/expenses/share-preset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+            };
+            cookie?: never;
+        };
+        get: operations["getPreviousExpenseSharePreset"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/trips/{tripId}/expenses/{expenseId}": {
         parameters: {
             query?: never;
@@ -891,6 +909,11 @@ export interface components {
         ExpensePage: {
             items: components["schemas"]["Expense"][];
             nextCursor?: string | null;
+        };
+        ExpenseSharePreset: {
+            sourceExpenseId: components["schemas"]["Id"];
+            allocationType: components["schemas"]["AllocationType"];
+            shares: components["schemas"]["ExpenseShareInput"][];
         };
         PrepareReceiptUploadRequest: {
             /** @enum {string} */
@@ -1863,6 +1886,7 @@ export interface operations {
                     "application/json": components["schemas"]["ExpensePage"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
         };
@@ -1900,6 +1924,37 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getPreviousExpenseSharePreset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Share inputs copied from the latest confirmed expense */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseSharePreset"];
+                };
+            };
+            /** @description No confirmed expense is available for a previous-share preset */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
         };
     };
     getExpense: {
