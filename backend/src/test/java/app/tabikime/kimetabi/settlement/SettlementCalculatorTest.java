@@ -115,6 +115,24 @@ class SettlementCalculatorTest {
                 .hasMessageContaining("range");
     }
 
+    @Test
+    void paidTransfersReduceOnlyTheRemainingDebt() {
+        SettlementExpenseSnapshot expense = expense(
+                1, 0, 1, 900, share(1, 300), share(2, 300), share(3, 300));
+        SettlementCalculation result = SettlementCalculator.calculate(
+                List.of(expense),
+                List.of(new SettlementSourceTransferSnapshot(
+                        50, 1, 2, 1, 200, TransferStatus.PAID)));
+
+        assertThat(result.balances()).containsExactly(
+                new MemberBalance(1, 400),
+                new MemberBalance(2, -100),
+                new MemberBalance(3, -300));
+        assertThat(result.transfers()).containsExactly(
+                new SettlementTransferDraft(3, 1, 300),
+                new SettlementTransferDraft(2, 1, 100));
+    }
+
     private static SettlementExpenseSnapshot expense(
             long id,
             long version,

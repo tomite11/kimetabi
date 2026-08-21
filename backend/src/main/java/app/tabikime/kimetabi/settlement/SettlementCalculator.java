@@ -19,8 +19,18 @@ public final class SettlementCalculator {
     }
 
     public static SettlementCalculation calculate(List<SettlementExpenseSnapshot> expenses) {
+        return calculate(expenses, List.of());
+    }
+
+    public static SettlementCalculation calculate(
+            List<SettlementExpenseSnapshot> expenses,
+            List<SettlementSourceTransferSnapshot> sourceTransfers
+    ) {
         if (expenses == null) {
             throw new IllegalArgumentException("expenses must not be null");
+        }
+        if (sourceTransfers == null) {
+            throw new IllegalArgumentException("sourceTransfers must not be null");
         }
 
         Map<Long, BigDecimal> balances = new HashMap<>();
@@ -43,6 +53,13 @@ public final class SettlementCalculator {
                 throw new IllegalArgumentException("share burdens must equal the expense base amount");
             }
         }
+        Set<Long> transferIds = new HashSet<>();
+        for (SettlementSourceTransferSnapshot transfer : sourceTransfers) {
+            validateSourceTransfer(transfer, transferIds);
+            BigDecimal amount = yen(transfer.amount(), "source transfer amount");
+            add(balances, transfer.fromMemberId(), amount);
+            add(balances, transfer.toMemberId(), amount.negate());
+        }
 
         List<MemberBalance> memberBalances = balances.entrySet().stream()
                 .map(entry -> new MemberBalance(entry.getKey(), exactLong(entry.getValue())))
@@ -50,6 +67,28 @@ public final class SettlementCalculator {
                 .toList();
         ensureBalanced(memberBalances);
         return new SettlementCalculation(memberBalances, createTransfers(memberBalances));
+    }
+
+    private static void validateSourceTransfer(
+            SettlementSourceTransferSnapshot transfer,
+            Set<Long> transferIds
+    ) {
+        if (transfer == null) {
+            throw new IllegalArgumentException("sourceTransfers must not contain null");
+        }
+        if (transfer.transferId() <= 0 || !transferIds.add(transfer.transferId())) {
+            throw new IllegalArgumentException("source transfer IDs must be positive and unique");
+        }
+        if (transfer.transferVersion() < 0
+                || transfer.fromMemberId() <= 0
+                || transfer.toMemberId() <= 0
+                || transfer.fromMemberId() == transfer.toMemberId()) {
+            throw new IllegalArgumentException("source transfer identity is invalid");
+        }
+        if (transfer.status() != TransferStatus.PAID
+                && transfer.status() != TransferStatus.CONFIRMED) {
+            throw new IllegalArgumentException("only paid source transfers can be recalculated");
+        }
     }
 
     private static void validateExpense(

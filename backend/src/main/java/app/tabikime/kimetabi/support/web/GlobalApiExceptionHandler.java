@@ -32,6 +32,9 @@ import app.tabikime.kimetabi.candidate.SlotVersionConflictException;
 import app.tabikime.kimetabi.candidate.VoteVersionConflictException;
 import app.tabikime.kimetabi.expense.ExpenseVersionConflictException;
 import app.tabikime.kimetabi.expense.ExpenseStateConflictException;
+import app.tabikime.kimetabi.settlement.SettlementStateConflictException;
+import app.tabikime.kimetabi.settlement.SettlementVersionConflictException;
+import app.tabikime.kimetabi.settlement.SettlementTransferVersionConflictException;
 
 @RestControllerAdvice
 public class GlobalApiExceptionHandler {
@@ -355,6 +358,58 @@ public class GlobalApiExceptionHandler {
     @ExceptionHandler(ExpenseStateConflictException.class)
     ResponseEntity<ProblemDetail> handleExpenseStateConflict(
             ExpenseStateConflictException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = createProblem(
+                HttpStatus.CONFLICT,
+                CONFLICT_TYPE,
+                "競合が発生しました",
+                ApiErrorCode.RESOURCE_CONFLICT,
+                exception.getMessage(),
+                request
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(SettlementVersionConflictException.class)
+    ResponseEntity<ProblemDetail> handleSettlementVersionConflict(
+            SettlementVersionConflictException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = createProblem(
+                HttpStatus.CONFLICT,
+                CONFLICT_TYPE,
+                "競合が発生しました",
+                ApiErrorCode.VERSION_CONFLICT,
+                "精算が別の操作で更新されています。",
+                request
+        );
+        problem.setProperty("currentVersion", exception.current().version());
+        problem.setProperty("current", exception.current());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(SettlementTransferVersionConflictException.class)
+    ResponseEntity<ProblemDetail> handleSettlementTransferVersionConflict(
+            SettlementTransferVersionConflictException exception,
+            HttpServletRequest request
+    ) {
+        ProblemDetail problem = createProblem(
+                HttpStatus.CONFLICT,
+                CONFLICT_TYPE,
+                "競合が発生しました",
+                ApiErrorCode.VERSION_CONFLICT,
+                "送金状態が別の操作で更新されています。",
+                request
+        );
+        problem.setProperty("currentVersion", exception.current().version());
+        problem.setProperty("current", exception.current());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(SettlementStateConflictException.class)
+    ResponseEntity<ProblemDetail> handleSettlementStateConflict(
+            SettlementStateConflictException exception,
             HttpServletRequest request
     ) {
         ProblemDetail problem = createProblem(
