@@ -3,6 +3,7 @@ import { http, HttpResponse } from "msw";
 import {
   amountExpenseDraft,
   emptyTripPage,
+  settlementDraft,
   tokyoTripSnapshot,
   transportSlotDetail,
 } from "./fixtures";
@@ -47,6 +48,36 @@ export const handlers = [
         { memberId: 8, weight: 1 },
       ],
     }),
+  ),
+  http.get("*/api/trips/42/settlements", () =>
+    HttpResponse.json({ items: [settlementDraft], nextCursor: null }),
+  ),
+  http.post("*/api/trips/42/settlements", () =>
+    HttpResponse.json(settlementDraft, { status: 201 }),
+  ),
+  http.post("*/api/trips/42/settlements/901/confirmation", () =>
+    HttpResponse.json({ ...settlementDraft, status: "CONFIRMED", version: 1 }),
+  ),
+  http.patch(
+    "*/api/trips/42/settlements/901/transfers/:transferId",
+    async ({ params, request }) => {
+      const body = (await request.json()) as { status: "PAID" | "CONFIRMED" };
+      const transferId = Number(params.transferId);
+      return HttpResponse.json({
+        ...settlementDraft,
+        status: "CONFIRMED",
+        version: 1,
+        transfers: settlementDraft.transfers.map((transfer) =>
+          transfer.id === transferId
+            ? {
+                ...transfer,
+                status: body.status,
+                version: transfer.version + 1,
+              }
+            : transfer,
+        ),
+      });
+    },
   ),
   http.patch("*/api/trips/42/expenses/:expenseId", async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;

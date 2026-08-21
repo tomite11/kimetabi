@@ -11,6 +11,7 @@ export default defineConfig({
         "trip-list-empty-state.spec.ts",
         "guest-trip-shell.spec.ts",
         "expense-capture.spec.ts",
+        "settlement.spec.ts",
       ],
   fullyParallel: true,
   reporter: "list",

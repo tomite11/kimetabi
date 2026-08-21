@@ -78,10 +78,11 @@ class SettlementApiTest {
                         .with(actor("owner")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.expenseTotal").value(900))
                 .andExpect(jsonPath("$.expenseVersions[0].expenseId").value(10))
                 .andExpect(jsonPath("$.transfers.length()").value(2))
                 .andExpect(jsonPath("$.hasUnappliedChanges").value(false));
-        mockMvc.perform(get("/api/trips/1/settlements?pageSize=1").with(actor("owner")))
+        mockMvc.perform(get("/api/trips/1/settlements?limit=1").with(actor("owner")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].id").value(settlementId));
         mockMvc.perform(post("/api/trips/1/settlements/{id}/confirmation", settlementId)

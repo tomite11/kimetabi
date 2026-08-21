@@ -174,6 +174,13 @@ class SettlementRepository {
                                 rs.getLong("expense_id"), rs.getLong("expense_version"))).list();
     }
 
+    long expenseTotal(long settlementId) {
+        return jdbcClient.sql("""
+                SELECT COALESCE(SUM(base_amount), 0) FROM settlement_expense
+                WHERE settlement_id = :id
+                """).param("id", settlementId).query(Long.class).single();
+    }
+
     List<SettlementTransferResource> transfers(long settlementId) {
         return jdbcClient.sql("""
                 SELECT id, from_member_id, to_member_id, amount, status, version

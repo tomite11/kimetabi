@@ -38,7 +38,7 @@ class SettlementController {
             @AuthenticationPrincipal AppPrincipal principal,
             @PathVariable @Positive long tripId,
             @RequestParam(required = false) String cursor,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int pageSize
+            @RequestParam(name = "limit", defaultValue = "20") @Min(1) @Max(100) int pageSize
     ) {
         return service.list(principal.firebaseUid(), tripId, cursor, pageSize);
     }

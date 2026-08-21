@@ -186,6 +186,7 @@ class SettlementService {
                 repository.paidTransfersExcluding(tripId, settlementId));
         return new SettlementResource(
                 stored.id(), stored.status(), stored.calculatedAt(),
+                repository.expenseTotal(settlementId),
                 repository.expenseVersions(settlementId), repository.transfers(settlementId),
                 changed, stored.version());
     }

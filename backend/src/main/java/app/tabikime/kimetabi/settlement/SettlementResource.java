@@ -7,6 +7,7 @@ public record SettlementResource(
         long id,
         SettlementStatus status,
         OffsetDateTime calculatedAt,
+        long expenseTotal,
         List<SettlementExpenseVersionResource> expenseVersions,
         List<SettlementTransferResource> transfers,
         boolean hasUnappliedChanges,

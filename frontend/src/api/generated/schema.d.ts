@@ -968,6 +968,7 @@ export interface components {
             status: components["schemas"]["SettlementStatus"];
             /** Format: date-time */
             calculatedAt: string;
+            expenseTotal: components["schemas"]["Yen"];
             expenseVersions: {
                 expenseId: components["schemas"]["Id"];
                 version: components["schemas"]["Version"];

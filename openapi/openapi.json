@@ -3817,6 +3817,7 @@
           "id",
           "status",
           "calculatedAt",
+          "expenseTotal",
           "expenseVersions",
           "transfers",
           "hasUnappliedChanges",
@@ -3832,6 +3833,9 @@
           "calculatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "expenseTotal": {
+            "$ref": "#/components/schemas/Yen"
           },
           "expenseVersions": {
             "type": "array",

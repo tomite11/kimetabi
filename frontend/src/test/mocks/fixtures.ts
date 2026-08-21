@@ -118,3 +118,34 @@ export const amountExpenseDraft = {
   shares: [],
   version: 0,
 } satisfies components["schemas"]["Expense"];
+
+export const settlementDraft = {
+  id: 901,
+  status: "DRAFT",
+  calculatedAt: "2026-09-23T03:00:00Z",
+  expenseTotal: 238_640,
+  expenseVersions: [
+    { expenseId: 801, version: 1 },
+    { expenseId: 802, version: 0 },
+  ],
+  transfers: [
+    {
+      id: 1001,
+      fromMemberId: 8,
+      toMemberId: 7,
+      amount: 18_240,
+      status: "PENDING",
+      version: 0,
+    },
+    {
+      id: 1002,
+      fromMemberId: 9,
+      toMemberId: 7,
+      amount: 8_900,
+      status: "PENDING",
+      version: 0,
+    },
+  ],
+  hasUnappliedChanges: false,
+  version: 0,
+} satisfies components["schemas"]["Settlement"];

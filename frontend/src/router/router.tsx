@@ -5,6 +5,7 @@ import { RouteErrorPage } from "../components/RouteErrorPage";
 import { JoinPage } from "../features/invitations/JoinPage";
 import { CandidateComparisonPage } from "../features/planning/CandidateComparisonPage";
 import { ExpenseCapturePage } from "../features/expenses/ExpenseCapturePage";
+import { SettlementPage } from "../features/settlements/SettlementPage";
 import { RecoveryPage } from "../features/invitations/RecoveryPage";
 import { ExpensePage, FutureActionPage } from "../features/trips/ExpensePage";
 import { PlanPage } from "../features/trips/PlanPage";
@@ -48,7 +49,7 @@ export const router = createBrowserRouter([
           },
           {
             path: "settle",
-            element: <FutureActionPage kind="settlement" />,
+            Component: SettlementPage,
           },
         ],
       },

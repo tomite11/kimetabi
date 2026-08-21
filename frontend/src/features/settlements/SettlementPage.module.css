@@ -1,0 +1,304 @@
+.page,
+.history,
+.history ul {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--color-mist);
+  border-radius: 1.25rem;
+}
+
+.summary p,
+.unapplied p,
+.draftNotice p,
+.completed p,
+.zeroState p {
+  margin: 0;
+  color: var(--color-ink-soft);
+  line-height: 1.6;
+}
+
+.summary strong {
+  display: block;
+  margin-block-start: var(--space-2);
+  font-family: var(--font-serif);
+  font-size: clamp(2rem, 8vw, 3rem);
+}
+
+.summary > span,
+.sectionHeading > span {
+  padding: 0.4rem 0.7rem;
+  color: var(--color-coral-deep);
+  font-size: var(--text-small);
+  font-weight: 900;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--color-coral), white 84%);
+  border-radius: 999px;
+}
+
+.emptyState,
+.zeroState,
+.errorState {
+  padding: var(--space-6);
+  text-align: center;
+  background: var(--color-white);
+  border: 1px dashed var(--color-sky);
+  border-radius: 1.25rem;
+}
+
+.emptyState > span {
+  display: inline-grid;
+  width: 3.5rem;
+  aspect-ratio: 1;
+  place-items: center;
+  color: var(--color-white);
+  font-family: var(--font-serif);
+  font-size: 1.75rem;
+  background: var(--color-coral);
+  border-radius: 50%;
+}
+
+.emptyState h3,
+.emptyState p {
+  margin-block-end: 0;
+}
+
+.emptyState p {
+  color: var(--color-ink-soft);
+  line-height: 1.7;
+}
+
+.emptyState button,
+.unapplied button,
+.draftNotice button,
+.transferState button,
+.errorPanel button,
+.errorState button {
+  min-height: 2.75rem;
+  padding-inline: var(--space-4);
+  color: var(--color-white);
+  font: inherit;
+  font-weight: 900;
+  background: var(--color-coral);
+  border: 0;
+  border-radius: 999px;
+}
+
+.emptyState button {
+  margin-block-start: var(--space-5);
+}
+
+.unapplied,
+.draftNotice,
+.completed,
+.errorPanel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border-radius: 1rem;
+}
+
+.unapplied {
+  background: color-mix(in srgb, var(--color-sun), white 76%);
+  border: 1px solid color-mix(in srgb, var(--color-sun), black 8%);
+}
+
+.draftNotice {
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+}
+
+.draftNotice span {
+  color: var(--color-coral-deep);
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.draftNotice h3,
+.sectionHeading h3,
+.sectionHeading p {
+  margin: 0;
+}
+
+.draftNotice h3 {
+  margin-block: var(--space-2);
+}
+
+.draftNotice button:disabled,
+.emptyState button:disabled,
+.transferState button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.completed {
+  justify-content: flex-start;
+  color: var(--color-ink);
+  background: color-mix(in srgb, var(--color-leaf), white 75%);
+}
+
+.completed > span {
+  display: grid;
+  width: 2.75rem;
+  aspect-ratio: 1;
+  place-items: center;
+  color: var(--color-white);
+  font-weight: 900;
+  background: #438233;
+  border-radius: 50%;
+}
+
+.sectionHeading,
+.transferMain,
+.transferState,
+.history li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.sectionHeading p {
+  color: var(--color-coral-deep);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.transferList,
+.history ul {
+  padding: 0;
+  margin: var(--space-4) 0 0;
+  list-style: none;
+}
+
+.transferList {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.transferList li {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+}
+
+.transferPath {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-weight: 900;
+}
+
+.transferPath span:nth-child(2) {
+  color: var(--color-coral);
+}
+
+.transferMain > strong {
+  font-size: 1.2rem;
+  white-space: nowrap;
+}
+
+.transferState > span {
+  color: var(--color-ink-soft);
+  font-size: var(--text-small);
+  font-weight: 800;
+}
+
+.transferState > span[data-status="CONFIRMED"] {
+  color: #316e24;
+}
+
+.transferState button {
+  color: var(--color-ink);
+  background: var(--color-mist);
+  border: 1px solid var(--color-sky);
+}
+
+.zeroState {
+  margin-block-start: var(--space-4);
+}
+
+.history {
+  padding-block-start: var(--space-5);
+  border-block-start: 1px solid var(--color-line);
+}
+
+.history h3 {
+  margin: 0;
+}
+
+.history li {
+  padding-block: var(--space-3);
+  border-block-end: 1px solid var(--color-line);
+}
+
+.history small {
+  display: block;
+  margin-block-start: 0.25rem;
+  color: var(--color-ink-soft);
+}
+
+.history li > span {
+  color: var(--color-ink-soft);
+  font-size: var(--text-small);
+  font-weight: 800;
+}
+
+.errorPanel {
+  align-items: flex-start;
+  color: var(--color-coral-deep);
+  background: color-mix(in srgb, var(--color-coral), white 90%);
+}
+
+@media (max-width: 38rem) {
+  .unapplied,
+  .draftNotice,
+  .errorPanel,
+  .transferState {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .summary,
+  .sectionHeading,
+  .transferMain {
+    align-items: flex-start;
+  }
+
+  .transferMain {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .unapplied button,
+  .draftNotice button,
+  .errorPanel button,
+  .transferState button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page *,
+  .page *::before,
+  .page *::after {
+    scroll-behavior: auto;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

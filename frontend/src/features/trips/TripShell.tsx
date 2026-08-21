@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import {
   NavLink,
+  Link,
   Outlet,
   useLocation,
   useNavigate,
@@ -77,6 +78,7 @@ export function TripShell() {
   const snapshot = snapshotQuery.data;
   const phase = phaseCopy[snapshot.trip.phase];
   const isExpenseRoute = location.pathname.startsWith(`/t/${tripId}/expenses`);
+  const isSettlementRoute = location.pathname === `/t/${tripId}/settle`;
   const primaryAction = isExpenseRoute ? "支出を記録" : phase.action;
   const primaryTarget = isExpenseRoute
     ? `/t/${tripId}/expenses/new`
@@ -163,7 +165,14 @@ export function TripShell() {
             ホーム
           </NavLink>
           <NavLink to={`/t/${tripId}/plan`}>旅程</NavLink>
-          <NavLink to={`/t/${tripId}/expenses`}>支出</NavLink>
+          <Link
+            to={`/t/${tripId}/expenses`}
+            aria-current={
+              isExpenseRoute || isSettlementRoute ? "page" : undefined
+            }
+          >
+            支出
+          </Link>
         </nav>
         <button
           className={styles.primaryAction}
