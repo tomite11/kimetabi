@@ -8,6 +8,8 @@ import java.time.Instant;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import app.tabikime.kimetabi.support.event.OutboxEventWriter;
+
 @Service
 public class InvitationRecoveryService {
 
@@ -21,6 +23,7 @@ public class InvitationRecoveryService {
     private final TokenRateLimitService rateLimitService;
     private final TripService tripService;
     private final Clock clock;
+    private final OutboxEventWriter eventWriter;
 
     public InvitationRecoveryService(
             AccessTokenRepository tokenRepository,
@@ -29,7 +32,8 @@ public class InvitationRecoveryService {
             SensitiveTokenCodec tokenCodec,
             TokenRateLimitService rateLimitService,
             TripService tripService,
-            Clock clock
+            Clock clock,
+            OutboxEventWriter eventWriter
     ) {
         this.tokenRepository = tokenRepository;
         this.tripRepository = tripRepository;
@@ -38,6 +42,7 @@ public class InvitationRecoveryService {
         this.rateLimitService = rateLimitService;
         this.tripService = tripService;
         this.clock = clock;
+        this.eventWriter = eventWriter;
     }
 
     @Transactional
@@ -102,7 +107,14 @@ public class InvitationRecoveryService {
         if (!tokenRepository.consumeInvitation(invitation.id())) {
             throw new InvalidAccessTokenException();
         }
-        tripRepository.touchTrip(invitation.tripId());
+        TripRepository.StoredMembership membership = tripRepository
+                .findMembership(invitation.tripId(), firebaseUid)
+                .orElseThrow(RecoveryConflictException::new);
+        tripRepository.incrementTripVersion(invitation.tripId());
+        long revision = eventWriter.nextRevision(invitation.tripId());
+        eventWriter.write(
+                invitation.tripId(), revision, "MEMBER_JOINED", "member",
+                membership.id(), null);
         return new InvitationAcceptance(
                 created,
                 tripService.snapshot(firebaseUid, invitation.tripId()));
@@ -153,7 +165,8 @@ public class InvitationRecoveryService {
         if (!tokenRepository.consumeRecovery(recovery.id())) {
             throw new InvalidAccessTokenException();
         }
-        tripRepository.touchTrip(recovery.tripId());
+        tripRepository.incrementTripVersion(recovery.tripId());
+        eventWriter.nextRevision(recovery.tripId());
         return tripRepository.getMemberResource(recovery.tripId(), recovery.memberId());
     }
 

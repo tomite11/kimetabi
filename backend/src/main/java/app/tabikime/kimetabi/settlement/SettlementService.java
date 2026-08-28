@@ -65,6 +65,7 @@ class SettlementService {
         long settlementId = repository.insertDraft(tripId, actorId);
         repository.insertSnapshots(
                 settlementId, tripId, expenses, sources, calculation.transfers());
+        eventWriter.nextRevision(tripId);
         SettlementResource result = resource(tripId, settlementId, false);
         idempotencyStore.complete(firebaseUid, "CREATE_SETTLEMENT_DRAFT", idempotencyKey,
                 "SETTLEMENT", settlementId, result);

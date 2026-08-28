@@ -80,6 +80,16 @@ class MemberLifecycleApiTest {
                         SELECT COUNT(*) FROM trip_member
                         WHERE trip_id = 1 AND role = 'OWNER' AND status = 'ACTIVE'
                         """).query(Long.class).single()).isEqualTo(1);
+        assertThat(jdbcClient.sql("""
+                        SELECT event_type FROM outbox_event
+                        WHERE trip_id = 1 AND trip_revision = 1
+                        ORDER BY resource_id
+                        """).query(String.class).list()).containsExactly(
+                                "MEMBER_ROLE_CHANGED", "MEMBER_ROLE_CHANGED");
+        assertThat(jdbcClient.sql("""
+                        SELECT DISTINCT payload ->> 'tripRevision'
+                        FROM outbox_event WHERE trip_id = 1
+                        """).query(String.class).single()).isEqualTo("1");
     }
 
     @Test
@@ -107,6 +117,7 @@ class MemberLifecycleApiTest {
                 .andExpect(jsonPath("$.members[1].status").value("LEFT"));
 
         assertThat(memberStatus("member-uid")).isEqualTo("LEFT");
+        assertThat(tripRevision()).isEqualTo(1);
     }
 
     @Test
@@ -129,6 +140,7 @@ class MemberLifecycleApiTest {
                 .andExpect(jsonPath("$.members[2].status").value("REMOVED"));
 
         assertThat(memberStatus("member-uid")).isEqualTo("REMOVED");
+        assertThat(tripRevision()).isEqualTo(1);
         assertThat(organizerId).isPositive();
     }
 
@@ -247,6 +259,12 @@ class MemberLifecycleApiTest {
                         SELECT status FROM trip_member
                         WHERE trip_id = 1 AND firebase_uid = :uid
                         """).param("uid", uid).query(String.class).single();
+    }
+
+    private long tripRevision() {
+        return jdbcClient.sql("SELECT revision FROM trip WHERE id = 1")
+                .query(Long.class)
+                .single();
     }
 
     private static RequestPostProcessor principal(String uid) {

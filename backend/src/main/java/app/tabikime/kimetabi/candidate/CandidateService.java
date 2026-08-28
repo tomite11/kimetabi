@@ -79,6 +79,7 @@ public class CandidateService {
         }
         CreateSlotRequest resolvedRequest = withDefaultDeadline(tripId, request);
         long slotId = repository.insertSlot(tripId, resolvedRequest);
+        eventWriter.nextRevision(tripId);
         return repository.findSlot(tripId, slotId).orElseThrow();
     }
 
@@ -109,6 +110,7 @@ public class CandidateService {
         }
         repository.reorderSlots(tripId, request.items().stream().collect(Collectors.toMap(
                 ReorderSlotsRequest.Item::slotId, ReorderSlotsRequest.Item::sortOrder)));
+        eventWriter.nextRevision(tripId);
         return repository.listSlots(tripId);
     }
 
@@ -143,6 +145,7 @@ public class CandidateService {
             throw new SlotVersionConflictException(repository.findSlot(tripId, slotId).orElseThrow());
         }
         long secondId = repository.insertSplitSlot(tripId, slot, request, secondEstimate);
+        eventWriter.nextRevision(tripId);
         return List.of(repository.findSlot(tripId, slotId).orElseThrow(),
                 repository.findSlot(tripId, secondId).orElseThrow());
     }
@@ -188,6 +191,7 @@ public class CandidateService {
             throw new SlotVersionConflictException(
                     repository.findSlot(tripId, slotId).orElseThrow(TripNotFoundException::new));
         }
+        eventWriter.nextRevision(tripId);
         return repository.findSlot(tripId, slotId).orElseThrow();
     }
 
@@ -204,6 +208,7 @@ public class CandidateService {
             throw new SlotVersionConflictException(
                     repository.findSlot(tripId, slotId).orElseThrow(TripNotFoundException::new));
         }
+        eventWriter.nextRevision(tripId);
     }
 
     @Transactional

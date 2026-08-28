@@ -74,6 +74,9 @@ class SettlementApiTest {
     void createsListsGetsAndConfirmsImmutableDraft() throws Exception {
         long settlementId = createDraft("owner", UUID.randomUUID());
 
+        assertThat(jdbcClient.sql("SELECT revision FROM trip WHERE id = 1")
+                .query(Long.class).single()).isEqualTo(1);
+
         mockMvc.perform(get("/api/trips/1/settlements/{id}", settlementId)
                         .with(actor("owner")))
                 .andExpect(status().isOk())

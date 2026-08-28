@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
+import app.tabikime.kimetabi.support.event.OutboxEventWriter;
+
 @Service
 public class TripService {
 
@@ -22,19 +24,22 @@ public class TripService {
     private final InitialSlotFactory initialSlotFactory;
     private final TripPhasePolicy phasePolicy;
     private final TripAuthorizationService authorization;
+    private final OutboxEventWriter eventWriter;
 
     public TripService(
             TripRepository repository,
             ObjectMapper objectMapper,
             InitialSlotFactory initialSlotFactory,
             TripPhasePolicy phasePolicy,
-            TripAuthorizationService authorization
+            TripAuthorizationService authorization,
+            OutboxEventWriter eventWriter
     ) {
         this.repository = repository;
         this.objectMapper = objectMapper;
         this.initialSlotFactory = initialSlotFactory;
         this.phasePolicy = phasePolicy;
         this.authorization = authorization;
+        this.eventWriter = eventWriter;
     }
 
     @Transactional
@@ -128,6 +133,7 @@ public class TripService {
                             .orElseThrow(TripNotFoundException::new);
             throw new TripVersionConflictException(toResource(latest));
         }
+        eventWriter.nextRevision(tripId);
         return repository.findActiveMemberTrip(tripId, firebaseUid)
                 .map(this::toResource)
                 .orElseThrow(TripNotFoundException::new);
@@ -151,6 +157,11 @@ public class TripService {
         if (!repository.transferOwner(tripId, actor.id(), target.id(), expectedVersion)) {
             throw conflict(firebaseUid, tripId);
         }
+        long revision = eventWriter.nextRevision(tripId);
+        eventWriter.write(
+                tripId, revision, "MEMBER_ROLE_CHANGED", "member", actor.id(), null);
+        eventWriter.write(
+                tripId, revision, "MEMBER_ROLE_CHANGED", "member", target.id(), null);
         return snapshot(firebaseUid, tripId);
     }
 
@@ -168,6 +179,7 @@ public class TripService {
                 tripId, actor.id(), MemberStatus.LEFT, expectedVersion)) {
             throw conflict(firebaseUid, tripId);
         }
+        eventWriter.nextRevision(tripId);
         return snapshotIncludingInactiveMember(tripId, actor.id());
     }
 
@@ -193,6 +205,7 @@ public class TripService {
                 tripId, target.id(), MemberStatus.REMOVED, expectedVersion)) {
             throw conflict(firebaseUid, tripId);
         }
+        eventWriter.nextRevision(tripId);
         return snapshot(firebaseUid, tripId);
     }
 

@@ -110,7 +110,20 @@ class InvitationRecoveryApiTest {
                         .content(acceptInvitationJson(token, "Guest"))
                         .with(principal("guest-uid")))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.members[1].name").value("Guest"));
+                .andExpect(jsonPath("$.members[1].name").value("Guest"))
+                .andExpect(jsonPath("$.trip.revision").value(1));
+
+        assertThat(jdbcClient.sql("""
+                        SELECT event_type, resource_type, resource_id, trip_revision,
+                               payload ->> 'type' AS payload_type
+                        FROM outbox_event WHERE trip_id = 1
+                        """).query((resultSet, rowNumber) -> List.of(
+                                resultSet.getString("event_type"),
+                                resultSet.getString("resource_type"),
+                                resultSet.getString("resource_id"),
+                                resultSet.getString("trip_revision"),
+                                resultSet.getString("payload_type"))).single())
+                .containsExactly("MEMBER_JOINED", "member", "2", "1", "MEMBER_JOINED");
 
         mockMvc.perform(post("/api/invitations/accept")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -134,9 +147,15 @@ class InvitationRecoveryApiTest {
                         .with(principal("guest-uid")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.members[1].status").value("ACTIVE"))
-                .andExpect(jsonPath("$.members[1].name").value("Guest Again"));
+                .andExpect(jsonPath("$.members[1].name").value("Guest Again"))
+                .andExpect(jsonPath("$.trip.revision").value(2));
 
         assertThat(memberCount(1, "guest-uid")).isEqualTo(1);
+        assertThat(jdbcClient.sql("""
+                        SELECT trip_revision FROM outbox_event
+                        WHERE trip_id = 1 AND event_type = 'MEMBER_JOINED'
+                        ORDER BY trip_revision
+                        """).query(Long.class).list()).containsExactly(1L, 2L);
     }
 
     @Test

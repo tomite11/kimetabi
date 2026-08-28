@@ -525,6 +525,9 @@ class CandidateApiTest {
                                 """)
                         .with(principal("member")))
                 .andExpect(status().isForbidden());
+
+        assertThat(jdbcClient.sql("SELECT revision FROM trip WHERE id = 1")
+                .query(Long.class).single()).isEqualTo(3);
     }
 
     @Test
@@ -574,6 +577,8 @@ class CandidateApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(10))
                 .andExpect(jsonPath("$[1].id").value(1));
+        assertThat(jdbcClient.sql("SELECT revision FROM trip WHERE id = 1")
+                .query(Long.class).single()).isEqualTo(1);
     }
 
     @Test
@@ -597,6 +602,8 @@ class CandidateApiTest {
                 .andExpect(jsonPath("$[1].dayFrom").value(2))
                 .andExpect(jsonPath("$[1].estPerPerson").value(10001))
                 .andExpect(jsonPath("$[1].title").value("2日目の宿"));
+        assertThat(jdbcClient.sql("SELECT revision FROM trip WHERE id = 1")
+                .query(Long.class).single()).isEqualTo(1);
     }
 
     @Test

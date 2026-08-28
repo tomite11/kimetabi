@@ -410,11 +410,10 @@ public class TripRepository {
                 .single();
     }
 
-    void touchTrip(long tripId) {
+    void incrementTripVersion(long tripId) {
         int updated = jdbcClient.sql("""
                         UPDATE trip
-                        SET revision = revision + 1,
-                            version = version + 1,
+                        SET version = version + 1,
                             updated_at = CURRENT_TIMESTAMP
                         WHERE id = :tripId
                           AND deleted_at IS NULL
@@ -491,7 +490,6 @@ public class TripRepository {
         int tripUpdated = jdbcClient.sql("""
                         UPDATE trip
                         SET owner_member_id = :newOwnerId,
-                            revision = revision + 1,
                             version = version + 1,
                             updated_at = CURRENT_TIMESTAMP
                         WHERE id = :tripId
@@ -559,8 +557,7 @@ public class TripRepository {
     ) {
         int tripUpdated = jdbcClient.sql("""
                         UPDATE trip
-                        SET revision = revision + 1,
-                            version = version + 1,
+                        SET version = version + 1,
                             updated_at = CURRENT_TIMESTAMP
                         WHERE id = :tripId
                           AND version = :expectedVersion
@@ -616,7 +613,6 @@ public class TripRepository {
                                 WHEN :budgetCapPresent THEN :budgetCap
                                 ELSE budget_cap
                             END,
-                            revision = revision + 1,
                             version = version + 1,
                             updated_at = CURRENT_TIMESTAMP
                         WHERE id = :tripId
