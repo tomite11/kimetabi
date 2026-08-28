@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
@@ -99,7 +100,7 @@ public class TripService {
         return new TripPage(pageRows.stream().map(this::toResource).toList(), nextCursor);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public TripSnapshot snapshot(String firebaseUid, long tripId) {
         TripRepository.StoredTrip trip = repository.findActiveMemberTrip(tripId, firebaseUid)
                 .orElseThrow(TripNotFoundException::new);
