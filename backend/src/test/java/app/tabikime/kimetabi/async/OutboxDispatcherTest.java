@@ -1,6 +1,11 @@
 package app.tabikime.kimetabi.async;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -21,6 +26,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
+
+import app.tabikime.kimetabi.realtime.TripEventPublisher;
 
 @Testcontainers
 @SpringBootTest
@@ -44,6 +51,9 @@ class OutboxDispatcherTest {
     @Autowired
     private RecordingTaskGateway gateway;
 
+    @Autowired
+    private TripEventPublisher eventPublisher;
+
     @BeforeEach
     void setUp() {
         jdbcClient.sql("""
@@ -62,6 +72,7 @@ class OutboxDispatcherTest {
         gateway.created.clear();
         gateway.fail = false;
         gateway.failAfterCreateOnce = false;
+        reset(eventPublisher);
     }
 
     @Test
@@ -115,6 +126,46 @@ class OutboxDispatcherTest {
         assertThat(gateway.created).containsExactly(new CreatedTask(eventId, 42));
     }
 
+    @Test
+    void publishesCommittedTripEventAndMarksItOnlyAfterStompSend() {
+        UUID eventId = insertRealtimeEvent();
+
+        assertThat(dispatcher.dispatch(50))
+                .isEqualTo(new OutboxDispatcher.DispatchResult(1, 1, 0));
+
+        verify(eventPublisher).publish(
+                org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.argThat(payload ->
+                        eventId.toString().equals(payload.get("eventId"))
+                                && "MEMBER_JOINED".equals(payload.get("type"))));
+        assertThat(jdbcClient.sql("""
+                        SELECT attempts, last_outcome_code, published_at IS NOT NULL
+                        FROM outbox_event WHERE id = :eventId
+                        """).param("eventId", eventId)
+                .query((row, number) -> List.of(
+                        row.getInt(1), row.getString(2), row.getBoolean(3)))
+                .single()).containsExactly(1, "STOMP_PUBLISHED", true);
+    }
+
+    @Test
+    void schedulerRetryRecoversStompFailureWithAtLeastOnceDelivery() {
+        insertRealtimeEvent();
+        doThrow(new IllegalStateException("broker unavailable fixture"))
+                .doNothing()
+                .when(eventPublisher).publish(
+                        org.mockito.ArgumentMatchers.eq(1L),
+                        org.mockito.ArgumentMatchers.anyMap());
+
+        assertThat(dispatcher.dispatch(50))
+                .isEqualTo(new OutboxDispatcher.DispatchResult(1, 0, 1));
+        assertThat(dispatcher.dispatch(50))
+                .isEqualTo(new OutboxDispatcher.DispatchResult(1, 1, 0));
+
+        verify(eventPublisher, times(2)).publish(
+                org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.anyMap());
+    }
+
     private UUID insertEvent() {
         UUID eventId = UUID.randomUUID();
         jdbcClient.sql("""
@@ -129,6 +180,27 @@ class OutboxDispatcherTest {
         return eventId;
     }
 
+    private UUID insertRealtimeEvent() {
+        UUID eventId = UUID.randomUUID();
+        jdbcClient.sql("""
+                        INSERT INTO outbox_event (
+                            id, trip_id, trip_revision, event_type, resource_type,
+                            resource_id, payload
+                        ) VALUES (
+                            :eventId, 1, 1, 'MEMBER_JOINED', 'member', 42,
+                            CAST(:payload AS jsonb)
+                        )
+                        """)
+                .param("eventId", eventId)
+                .param("payload", """
+                        {"eventId":"%s","tripId":1,"tripRevision":1,
+                         "type":"MEMBER_JOINED","resourceType":"member",
+                         "resourceId":42,"occurredAt":"2026-08-28T00:00:00Z"}
+                        """.formatted(eventId))
+                .update();
+        return eventId;
+    }
+
     @TestConfiguration(proxyBeanMethods = false)
     static class Configuration {
 
@@ -136,6 +208,12 @@ class OutboxDispatcherTest {
         @Primary
         RecordingTaskGateway recordingTaskGateway() {
             return new RecordingTaskGateway();
+        }
+
+        @Bean
+        @Primary
+        TripEventPublisher tripEventPublisher() {
+            return mock(TripEventPublisher.class);
         }
     }
 

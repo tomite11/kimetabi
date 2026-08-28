@@ -116,7 +116,7 @@ class M4AsyncCandidateAcceptanceTest {
         createUrlCandidate(url)
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.metadataStatus").value("PENDING"));
-        assertThat(dispatcher.dispatch(10).published()).isEqualTo(1);
+        assertThat(dispatcher.dispatch(10).published()).isEqualTo(2);
         CreatedTask firstTask = taskGateway.tasks.getFirst();
 
         performTask(firstTask, null).andExpect(status().isUnauthorized());
@@ -137,7 +137,7 @@ class M4AsyncCandidateAcceptanceTest {
                         .with(principal()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.metadataStatus").value("PENDING"));
-        assertThat(dispatcher.dispatch(10).published()).isEqualTo(1);
+        assertThat(dispatcher.dispatch(10).published()).isEqualTo(3);
         CreatedTask retryTask = taskGateway.tasks.get(1);
 
         performTask(retryTask, "tasks-token").andExpect(status().isNoContent());
@@ -161,7 +161,7 @@ class M4AsyncCandidateAcceptanceTest {
                 "fixture not found"));
 
         createUrlCandidate(url).andExpect(status().isCreated());
-        assertThat(dispatcher.dispatch(10).published()).isEqualTo(1);
+        assertThat(dispatcher.dispatch(10).published()).isEqualTo(2);
         performTask(taskGateway.tasks.getFirst(), "tasks-token")
                 .andExpect(status().isNoContent());
 

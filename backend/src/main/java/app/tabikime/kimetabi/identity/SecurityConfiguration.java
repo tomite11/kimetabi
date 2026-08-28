@@ -29,6 +29,7 @@ public class SecurityConfiguration {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        .requestMatchers("/ws").permitAll()
                         .requestMatchers("/internal/tasks/**")
                             .hasAuthority(InternalOidcAuthenticationFilter.TASK_AUTHORITY)
                         .requestMatchers("/internal/outbox/**", "/internal/receipts/**")
