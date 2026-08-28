@@ -64,6 +64,11 @@ export default defineConfig({
         target: process.env.VITE_DEV_API_TARGET || "http://127.0.0.1:8080",
         changeOrigin: true,
       },
+      "/ws": {
+        target: process.env.VITE_DEV_API_TARGET || "http://127.0.0.1:8080",
+        changeOrigin: true,
+        ws: true,
+      },
     },
   },
 });

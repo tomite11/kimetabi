@@ -1,18 +1,21 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const realApi = process.env.E2E_REAL_API === "true";
+const realtime = process.env.E2E_REALTIME === "true";
 const databasePort = process.env.E2E_DATABASE_PORT || "55432";
 
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: realApi
-    ? ["real-api-trip.spec.ts", "real-api-settlement.spec.ts"]
-    : [
-        "trip-list-empty-state.spec.ts",
-        "guest-trip-shell.spec.ts",
-        "expense-capture.spec.ts",
-        "settlement.spec.ts",
-      ],
+  testMatch: realtime
+    ? ["realtime-recovery.spec.ts"]
+    : realApi
+      ? ["real-api-trip.spec.ts", "real-api-settlement.spec.ts"]
+      : [
+          "trip-list-empty-state.spec.ts",
+          "guest-trip-shell.spec.ts",
+          "expense-capture.spec.ts",
+          "settlement.spec.ts",
+        ],
   fullyParallel: true,
   reporter: "list",
   use: {
@@ -52,7 +55,9 @@ export default defineConfig({
         },
       ]
     : {
-        command: "VITE_ENABLE_MSW=true npm run dev -- --host 127.0.0.1",
+        command: realtime
+          ? "VITE_ENABLE_MSW=true VITE_ENABLE_REALTIME=true VITE_WEBSOCKET_URL=ws://127.0.0.1:5174/ws npm run dev -- --host 127.0.0.1"
+          : "VITE_ENABLE_MSW=true npm run dev -- --host 127.0.0.1",
         url: "http://127.0.0.1:5173",
         reuseExistingServer: !process.env.CI,
       },

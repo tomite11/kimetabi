@@ -133,9 +133,10 @@ VITE_FIREBASE_PROJECT_ID=...
 VITE_FIREBASE_APP_ID=...
 ```
 
-開発サーバーの `/api` は既定で `http://127.0.0.1:8080` へproxyされます。別のAPIを
+開発サーバーの `/api` と `/ws` は既定で `http://127.0.0.1:8080` へproxyされます。別のAPIを
 使う場合だけ `VITE_DEV_API_TARGET` を設定してください。本番buildではproxyは使わず、
-`VITE_API_BASE_URL` でCloud RunのAPI originを指定します。
+`VITE_API_BASE_URL` でCloud RunのAPI originを指定します。WebSocketだけ別originへ
+接続する環境では `VITE_WEBSOCKET_URL` に `/ws` を含む `wss:` URLを指定します。
 
 ```shell
 cd frontend
@@ -152,7 +153,11 @@ cd frontend
 npm test
 npm run lint
 npm run test:e2e
+npm run test:e2e:realtime
 ```
+
+`test:e2e:realtime` はテスト用STOMPサーバーと2つのブラウザコンテキストを使い、
+イベントの重複・欠落と、切断後のREST同期から再購読までを検証します。
 
 Firebase Auth Emulator、実Spring Boot API、PostgreSQLを通すM2縦切りE2Eは、先に
 ローカルPostgreSQLを起動してから実行します。`demo-` project IDとloopback emulator

@@ -12,6 +12,7 @@ import {
 
 import type { components } from "../../api/generated/schema";
 import { useAuth } from "../../auth/AuthProvider";
+import { useTripRealtimeSync } from "../sync/useTripRealtimeSync";
 import { MemberManager } from "./MemberManager";
 import { updateTrip } from "./tripMutations";
 import { tripKeys, tripSnapshotQuery } from "./tripQueries";
@@ -47,6 +48,11 @@ export function TripShell() {
     ...tripSnapshotQuery(tripId),
     enabled: Number.isSafeInteger(tripId) && tripId > 0,
   });
+  useTripRealtimeSync(
+    tripId,
+    snapshotQuery.data?.trip.revision ?? 0,
+    snapshotQuery.isSuccess,
+  );
   const phaseMutation = useMutation({
     mutationFn: (phaseOverride: TripPhase | null) =>
       updateTrip(tripId, {
@@ -84,7 +90,7 @@ export function TripShell() {
     ? `/t/${tripId}/expenses/new`
     : actionTarget(tripId, snapshot.trip.phase);
   return (
-    <div className={styles.shell}>
+    <div className={styles.shell} data-trip-revision={snapshot.trip.revision}>
       <header className={styles.tripHeader}>
         <div className={styles.headerRow}>
           <div>
