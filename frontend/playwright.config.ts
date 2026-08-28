@@ -6,7 +6,7 @@ const databasePort = process.env.E2E_DATABASE_PORT || "55432";
 export default defineConfig({
   testDir: "./e2e",
   testMatch: realApi
-    ? "real-api-trip.spec.ts"
+    ? ["real-api-trip.spec.ts", "real-api-settlement.spec.ts"]
     : [
         "trip-list-empty-state.spec.ts",
         "guest-trip-shell.spec.ts",
