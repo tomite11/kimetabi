@@ -2,7 +2,9 @@ package app.tabikime.kimetabi.settlement;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -10,6 +12,27 @@ import java.util.Random;
 import org.junit.jupiter.api.Test;
 
 class SettlementCalculatorTest {
+
+    @Test
+    void twoThousandExpensesForMaximumTripSizeStayWithinTheReleaseBudget() {
+        List<SettlementShareSnapshot> shares = new ArrayList<>();
+        for (long memberId = 1; memberId <= 100; memberId++) {
+            shares.add(share(memberId, 100));
+        }
+        List<SettlementExpenseSnapshot> expenses = new ArrayList<>();
+        for (int expenseId = 1; expenseId <= 2_000; expenseId++) {
+            expenses.add(expense(expenseId, 0, 1, 10_000, shares));
+        }
+
+        SettlementCalculation result = assertTimeout(
+                Duration.ofSeconds(5), () -> SettlementCalculator.calculate(expenses));
+
+        assertThat(result.balances()).hasSize(100);
+        assertThat(result.balances().stream().mapToLong(MemberBalance::amount).sum()).isZero();
+        assertThat(result.transfers()).hasSizeLessThanOrEqualTo(99);
+        assertThat(result.transfers().stream().mapToLong(SettlementTransferDraft::amount).sum())
+                .isEqualTo(19_800_000L);
+    }
 
     @Test
     void calculatesBalancesAndGreedyTransfersFromConfirmedExpenseSnapshots() {

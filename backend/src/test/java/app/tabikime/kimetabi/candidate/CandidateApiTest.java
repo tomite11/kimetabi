@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -904,6 +905,89 @@ class CandidateApiTest {
                         .with(principal("owner-a")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"));
+    }
+
+    @Test
+    void authorizationBoundaryRejectsOneHundredUnrelatedRequestsWithoutMutation() {
+        createCandidateDirectly();
+
+        assertTimeout(Duration.ofSeconds(10), () -> {
+            for (int request = 0; request < 100; request++) {
+                mockMvc.perform(get("/api/trips/1/slots/1")
+                                .with(principal("outsider-" + request)))
+                        .andExpect(status().isNotFound());
+            }
+        });
+
+        assertThat(jdbcClient.sql("SELECT revision FROM trip WHERE id = 1")
+                .query(Long.class).single()).isZero();
+        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM outbox_event")
+                .query(Long.class).single()).isZero();
+    }
+
+    @Test
+    void oneHundredIdempotentRetriesCreateOneCandidateAndOneEvent() {
+        UUID key = UUID.randomUUID();
+
+        assertTimeout(Duration.ofSeconds(10), () -> {
+            for (int request = 0; request < 100; request++) {
+                mockMvc.perform(post("/api/trips/1/slots/1/candidates")
+                                .header("Idempotency-Key", key)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"title\":\"再送候補\"}")
+                                .with(principal("owner-a")))
+                        .andExpect(status().isCreated())
+                        .andExpect(jsonPath("$.id").value(1));
+            }
+        });
+
+        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM candidate")
+                .query(Long.class).single()).isEqualTo(1);
+        assertThat(jdbcClient.sql("SELECT revision FROM trip WHERE id = 1")
+                .query(Long.class).single()).isEqualTo(1);
+        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM outbox_event")
+                .query(Long.class).single()).isEqualTo(1);
+    }
+
+    @Test
+    void sixteenConcurrentUpdatesWithOneVersionHaveExactlyOneWinner() {
+        createCandidateDirectly();
+        CountDownLatch start = new CountDownLatch(1);
+
+        assertTimeout(Duration.ofSeconds(10), () -> {
+            try (var executor = Executors.newFixedThreadPool(16)) {
+                var futures = IntStream.range(0, 16)
+                        .mapToObj(index -> executor.submit(() -> {
+                            start.await();
+                            return mockMvc.perform(patch("/api/trips/1/candidates/1")
+                                            .contentType(MediaType.APPLICATION_JSON)
+                                            .content("{\"version\":0,\"title\":\"候補-" + index + "\"}")
+                                            .with(principal("owner-a")))
+                                    .andReturn().getResponse().getStatus();
+                        }))
+                        .toList();
+                start.countDown();
+                List<Integer> responses = futures.stream()
+                        .map(future -> {
+                            try {
+                                return future.get();
+                            } catch (Exception exception) {
+                                throw new IllegalStateException(exception);
+                            }
+                        })
+                        .toList();
+
+                assertThat(responses).filteredOn(response -> response == 200).hasSize(1);
+                assertThat(responses).filteredOn(response -> response == 409).hasSize(15);
+            }
+        });
+
+        assertThat(jdbcClient.sql("SELECT version FROM candidate WHERE id = 1")
+                .query(Long.class).single()).isEqualTo(1);
+        assertThat(jdbcClient.sql("SELECT revision FROM trip WHERE id = 1")
+                .query(Long.class).single()).isEqualTo(1);
+        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM outbox_event")
+                .query(Long.class).single()).isEqualTo(1);
     }
 
     @Test

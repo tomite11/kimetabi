@@ -38,6 +38,8 @@ cd backend
 ```
 
 結合テストはTestcontainersからPostgreSQLを起動するため、Dockerが必要です。
+リリース時の性能・負荷境界は `doc/BACKEND_QUALITY_REPORT.md`、Flyway migration、
+rollback、backup restoreの手順は `doc/DATABASE_OPERATIONS.md` を参照してください。
 Firebase Admin SDKは`FIREBASE_PROJECT_ID`が設定されている場合にApplication Default
 Credentialsで初期化され、Bearerとして受け取ったFirebase ID tokenを検証して
 `AppPrincipal`へ変換します。ローカルで本番認証を確認する場合は

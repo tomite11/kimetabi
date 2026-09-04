@@ -1,8 +1,10 @@
 package app.tabikime.kimetabi.expense;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -11,6 +13,20 @@ import java.util.Random;
 import org.junit.jupiter.api.Test;
 
 class ExpenseAllocationReleaseRegressionTest {
+
+    @Test
+    void maximumTripSizeAllocationStaysWithinTheReleaseBudget() {
+        List<ExpenseShareInput> shares = weightedInput(new Random(8102L), 100);
+
+        assertTimeout(Duration.ofSeconds(5), () -> {
+            for (int calculation = 0; calculation < 5_000; calculation++) {
+                List<ExpenseShareResource> result = ExpenseAllocation.calculate(
+                        10_000_000L, AllocationType.WEIGHT, shares);
+                assertThat(result.stream().mapToLong(ExpenseShareResource::finalAmount).sum())
+                        .isEqualTo(10_000_000L);
+            }
+        });
+    }
 
     @Test
     void randomizedAllocationsAlwaysPreserveYenAndRemainDeterministic() {

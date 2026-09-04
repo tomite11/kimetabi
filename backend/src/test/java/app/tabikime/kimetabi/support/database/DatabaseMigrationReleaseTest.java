@@ -2,6 +2,8 @@ package app.tabikime.kimetabi.support.database;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.sql.DriverManager;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -130,6 +132,71 @@ class DatabaseMigrationReleaseTest {
         assertThat(tables).containsAll(DOMAIN_TABLES);
         assertThat(constraints).containsAll(RELEASE_CRITICAL_CONSTRAINTS);
         assertThat(indexes).containsAll(RELEASE_CRITICAL_INDEXES);
+    }
+
+    @Test
+    void logicalBackupRestoresSchemaHistoryAndDomainDataIntoSeparateDatabase() throws Exception {
+        jdbcClient.sql("DELETE FROM trip WHERE id = 8000001").update();
+        jdbcClient.sql("""
+                        INSERT INTO trip (
+                            id, title, destination, starts_on, ends_on, timezone,
+                            expected_member_count
+                        ) VALUES (
+                            8000001, '復旧確認旅行', '東京', DATE '2030-01-01',
+                            DATE '2030-01-02', 'Asia/Tokyo', 2
+                        )
+                        """).update();
+        jdbcClient.sql("""
+                        INSERT INTO trip_member (
+                            id, trip_id, firebase_uid, name, role, status
+                        ) VALUES (
+                            8000001, 8000001, 'restore-owner', '復旧確認者', 'OWNER', 'ACTIVE'
+                        )
+                        """).update();
+        jdbcClient.sql("UPDATE trip SET owner_member_id = 8000001 WHERE id = 8000001")
+                .update();
+
+        assertContainerCommandSucceeds(
+                "pg_dump", "--format=custom", "--no-owner", "--no-privileges",
+                "--file=/tmp/kimetabi-release.dump", "--username=kimetabi", "kimetabi");
+        jdbcClient.sql("UPDATE trip SET title = 'バックアップ後の変更' WHERE id = 8000001")
+                .update();
+        assertContainerCommandSucceeds("createdb", "--username=kimetabi", "kimetabi_restore");
+        assertContainerCommandSucceeds(
+                "pg_restore", "--no-owner", "--no-privileges", "--exit-on-error",
+                "--dbname=kimetabi_restore", "--username=kimetabi",
+                "/tmp/kimetabi-release.dump");
+
+        String restoreUrl = "jdbc:postgresql://%s:%d/kimetabi_restore?loggerLevel=OFF"
+                .formatted(POSTGRES.getHost(), POSTGRES.getMappedPort(5432));
+        try (var connection = DriverManager.getConnection(restoreUrl, "kimetabi", "kimetabi")) {
+            try (var statement = connection.prepareStatement(
+                    "SELECT title FROM trip WHERE id = 8000001")) {
+                try (var result = statement.executeQuery()) {
+                    assertThat(result.next()).isTrue();
+                    assertThat(result.getString(1)).isEqualTo("復旧確認旅行");
+                }
+            }
+            try (var statement = connection.prepareStatement("""
+                    SELECT version FROM flyway_schema_history
+                    WHERE success ORDER BY installed_rank
+                    """)) {
+                try (var result = statement.executeQuery()) {
+                    List<String> versions = new ArrayList<>();
+                    while (result.next()) {
+                        versions.add(result.getString(1));
+                    }
+                    assertThat(versions).containsExactlyElementsOf(EXPECTED_VERSIONS);
+                }
+            }
+        }
+    }
+
+    private static void assertContainerCommandSucceeds(String... command) throws Exception {
+        var result = POSTGRES.execInContainer(command);
+        assertThat(result.getExitCode())
+                .withFailMessage("Command failed: %s", result.getStderr())
+                .isZero();
     }
 
     private List<String> successfulVersions() {
