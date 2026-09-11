@@ -53,8 +53,8 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - run: npx playwright install --with-deps chromium firefox
+      - run: npm run test:e2e:release
 
   integration-e2e:
     runs-on: ubuntu-latest

@@ -1,6 +1,7 @@
 import { Outlet, ScrollRestoration } from "react-router";
 
 import styles from "./RootLayout.module.css";
+import { PwaStatus } from "./PwaStatus";
 
 export function RootLayout() {
   return (
@@ -20,6 +21,7 @@ export function RootLayout() {
       <main className={styles.main} id="main-content" tabIndex={-1}>
         <Outlet />
       </main>
+      <PwaStatus />
       <ScrollRestoration />
     </div>
   );

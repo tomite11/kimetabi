@@ -157,9 +157,11 @@ cd frontend
 npm test
 npm run lint
 npm run test:e2e
+npm run test:e2e:release
 npm run test:e2e:realtime
 ```
 
+`test:e2e:release` はproduction PWAを複数ブラウザ、画面幅、オフライン条件で検証します。
 `test:e2e:realtime` はテスト用STOMPサーバーと2つのブラウザコンテキストを使い、
 イベントの重複・欠落と、切断後のREST同期から再購読までを検証します。
 

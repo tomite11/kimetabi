@@ -7,6 +7,7 @@ interface ImportMetaEnv {
   readonly VITE_DEV_API_TARGET?: string;
   readonly VITE_ENABLE_MSW?: string;
   readonly VITE_ENABLE_REALTIME?: string;
+  readonly VITE_E2E_PWA?: string;
   readonly VITE_FIREBASE_AUTH_EMULATOR_URL?: string;
   readonly VITE_FIREBASE_API_KEY?: string;
   readonly VITE_FIREBASE_AUTH_DOMAIN?: string;

@@ -2,6 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 const realApi = process.env.E2E_REAL_API === "true";
 const realtime = process.env.E2E_REALTIME === "true";
+const pwaRelease = process.env.E2E_PWA === "true";
+const crossBrowser = process.env.E2E_CROSS_BROWSER === "true";
 const databasePort = process.env.E2E_DATABASE_PORT || "55432";
 
 export default defineConfig({
@@ -10,13 +12,23 @@ export default defineConfig({
     ? ["realtime-recovery.spec.ts"]
     : realApi
       ? ["real-api-trip.spec.ts", "real-api-settlement.spec.ts"]
-      : [
-          "trip-list-empty-state.spec.ts",
-          "guest-trip-shell.spec.ts",
-          "expense-capture.spec.ts",
-          "settlement.spec.ts",
-        ],
-  fullyParallel: true,
+      : pwaRelease
+        ? ["pwa-release.spec.ts"]
+        : crossBrowser
+          ? [
+              "trip-list-empty-state.spec.ts",
+              "guest-trip-shell.spec.ts",
+              "expense-capture.spec.ts",
+              "settlement.spec.ts",
+            ]
+          : [
+              "trip-list-empty-state.spec.ts",
+              "guest-trip-shell.spec.ts",
+              "expense-capture.spec.ts",
+              "settlement.spec.ts",
+            ],
+  fullyParallel: !pwaRelease && !crossBrowser,
+  workers: pwaRelease || crossBrowser ? 1 : undefined,
   reporter: "list",
   use: {
     baseURL: "http://127.0.0.1:5173",
@@ -30,6 +42,12 @@ export default defineConfig({
         browserName: "chromium",
       },
     },
+    ...(crossBrowser
+      ? [
+          { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
+          { name: "desktop-firefox", use: { ...devices["Desktop Firefox"] } },
+        ]
+      : []),
   ],
   webServer: realApi
     ? [
@@ -55,9 +73,11 @@ export default defineConfig({
         },
       ]
     : {
-        command: realtime
-          ? "VITE_ENABLE_MSW=true VITE_ENABLE_REALTIME=true VITE_WEBSOCKET_URL=ws://127.0.0.1:5174/ws npm run dev -- --host 127.0.0.1"
-          : "VITE_ENABLE_MSW=true npm run dev -- --host 127.0.0.1",
+        command: pwaRelease
+          ? "npm run preview -- --host 127.0.0.1 --port 5173"
+          : realtime
+            ? "VITE_ENABLE_MSW=true VITE_ENABLE_REALTIME=true VITE_WEBSOCKET_URL=ws://127.0.0.1:5174/ws npm run dev -- --host 127.0.0.1"
+            : "VITE_ENABLE_MSW=true npm run dev -- --host 127.0.0.1",
         url: "http://127.0.0.1:5173",
         reuseExistingServer: !process.env.CI,
       },

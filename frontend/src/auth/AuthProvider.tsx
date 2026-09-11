@@ -37,7 +37,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
     let active = true;
 
     if (!hasFirebaseConfig()) {
-      if (import.meta.env.VITE_ENABLE_MSW === "true") {
+      if (
+        import.meta.env.VITE_ENABLE_MSW === "true" ||
+        import.meta.env.VITE_E2E_PWA === "true"
+      ) {
         setAccessTokenProvider(async () => "msw-anonymous-token");
         setState({ uid: "msw-anonymous", isAnonymous: true, status: "ready" });
       } else {

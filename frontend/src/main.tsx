@@ -1,11 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router/dom";
-import { registerSW } from "virtual:pwa-register";
 
 import { AppProviders } from "./providers/AppProviders";
 import { router } from "./router/router";
 import "./styles/global.css";
+import { initializePwa } from "./pwa/pwaLifecycle";
 
 async function enableApiMocking() {
   if (import.meta.env.VITE_ENABLE_MSW !== "true") {
@@ -23,7 +23,7 @@ if (!rootElement) {
 }
 
 void enableApiMocking().then(() => {
-  registerSW({ immediate: true });
+  initializePwa();
   createRoot(rootElement).render(
     <StrictMode>
       <AppProviders>

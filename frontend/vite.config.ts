@@ -7,7 +7,12 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "prompt",
-      includeAssets: ["icons/app-icon.svg", "icons/app-icon-maskable.svg"],
+      includeAssets: [
+        "icons/app-icon-192.png",
+        "icons/app-icon-512.png",
+        "icons/app-icon-maskable-512.png",
+        "icons/apple-touch-icon.png",
+      ],
       manifest: {
         name: "タビキメワリ",
         short_name: "タビキメワリ",
@@ -18,17 +23,24 @@ export default defineConfig({
         display: "standalone",
         background_color: "#fbfcfa",
         theme_color: "#182b49",
+        categories: ["travel", "finance", "productivity"],
         icons: [
           {
-            src: "/icons/app-icon.svg",
-            sizes: "any",
-            type: "image/svg+xml",
+            src: "/icons/app-icon-192.png",
+            sizes: "192x192",
+            type: "image/png",
             purpose: "any",
           },
           {
-            src: "/icons/app-icon-maskable.svg",
-            sizes: "any",
-            type: "image/svg+xml",
+            src: "/icons/app-icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "/icons/app-icon-maskable-512.png",
+            sizes: "512x512",
+            type: "image/png",
             purpose: "maskable",
           },
         ],
