@@ -2,6 +2,15 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import { defineConfig } from "vitest/config";
 
+function removeForwardedBrowserOrigin(proxy: {
+  on: (
+    event: "proxyReq",
+    listener: (request: { removeHeader: (name: string) => void }) => void,
+  ) => void;
+}) {
+  proxy.on("proxyReq", (request) => request.removeHeader("origin"));
+}
+
 export default defineConfig({
   plugins: [
     react(),
@@ -75,6 +84,7 @@ export default defineConfig({
       "/api": {
         target: process.env.VITE_DEV_API_TARGET || "http://127.0.0.1:8080",
         changeOrigin: true,
+        configure: removeForwardedBrowserOrigin,
       },
       "/ws": {
         target: process.env.VITE_DEV_API_TARGET || "http://127.0.0.1:8080",
