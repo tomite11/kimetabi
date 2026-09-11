@@ -1390,6 +1390,13 @@ POST   /internal/outbox/dispatch                          Cloud Scheduler専用
 - **URL取り込み**: 候補を即時作成して `201 Created` を返し、メタデータはCloud Tasksで非同期取得する（6.3.4参照）
 - **Google Cloud構成**: Firebase Hosting／Authentication、Cloud Run、Cloud SQL、Cloud Tasks、Cloud Storage、Cloud Visionを東京リージョン中心に構成し、Kubernetes・JobRunr・FirestoreはMVPで使用しない（8.1参照）
 - **Cloud Run課金**: 開発・クローズドβはrequest-based billing、`min instances = 0`、`max instances = 1` とし、Outbox回復をCloud Schedulerから起動する。一般公開後に実測を基に再評価する（8.1.2参照）
+- **クローズドβのDB・復旧・監視初期値**: Cloud SQLは`db-g1-small`を使い、
+  自動backupを14件、PITRのtransaction logを7日保持する。backup開始は
+  `18:00 UTC`（03:00 JST）、Outbox回復はUTCで5分周期とする。
+  Cloud Monitoringは5分windowでCloud Run 5xxを5件以上、Outbox dispatch失敗を
+  1件以上、Cloud SQL CPU 80%超過の5分継続で通知する。通知は
+  emailとSlack等の2系統を必須とする。shared-coreはCloud SQL SLA対象外のため、
+  一般公開前に負荷実測とdedicated coreへの移行要否を再評価する
 - **通貨**: MVPは日本円のみとし、多通貨・為替換算と為替レート取得元の選定はMVP仕様から除外する（9参照）
 - **確定負担額と精算スナップショット**: CONFIRMED時の円単位負担額を
   `expense_share.final_amount` に保存し、精算には対象支出version、支払者、

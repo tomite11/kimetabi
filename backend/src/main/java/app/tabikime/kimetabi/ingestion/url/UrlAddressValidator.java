@@ -161,9 +161,18 @@ public final class UrlAddressValidator {
         int first = unsigned(bytes[0]);
         int second = unsigned(bytes[1]);
         boolean globalUnicast = (first & 0xe0) == 0x20;
+        boolean ietfSpecialPurpose = first == 0x20 && second == 0x01
+                && (unsigned(bytes[2]) & 0xfe) == 0;
+        boolean sixToFour = first == 0x20 && second == 0x02;
         boolean documentation = first == 0x20 && second == 0x01
                 && unsigned(bytes[2]) == 0x0d && unsigned(bytes[3]) == 0xb8;
-        return globalUnicast && !documentation;
+        boolean extendedDocumentation = first == 0x3f && second == 0xff
+                && (unsigned(bytes[2]) & 0xf0) == 0;
+        return globalUnicast
+                && !ietfSpecialPurpose
+                && !sixToFour
+                && !documentation
+                && !extendedDocumentation;
     }
 
     private static int unsigned(byte value) {

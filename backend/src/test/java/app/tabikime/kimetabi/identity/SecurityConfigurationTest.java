@@ -1,9 +1,12 @@
 package app.tabikime.kimetabi.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
@@ -19,6 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import app.tabikime.kimetabi.internal.InternalOidcVerifier;
 import app.tabikime.kimetabi.internal.InternalCaller;
+import app.tabikime.kimetabi.support.config.CorsProperties;
 
 @SpringBootTest(
         classes = {
@@ -26,7 +30,10 @@ import app.tabikime.kimetabi.internal.InternalCaller;
                 SecurityConfiguration.class,
                 SessionController.class
         },
-        properties = "management.endpoints.web.exposure.include=health,info"
+        properties = {
+                "management.endpoints.web.exposure.include=health,info",
+                "kimetabi.cors.allowed-origins=https://tabikime.app,https://preview--tabikime.web.app"
+        }
 )
 @AutoConfigureMockMvc
 class SecurityConfigurationTest {
@@ -118,6 +125,45 @@ class SecurityConfigurationTest {
         mockMvc.perform(post("/internal/outbox/test")
                         .header("Authorization", "Bearer scheduler-token"))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void allowsOnlyConfiguredProductionAndPreviewOrigins() throws Exception {
+        mockMvc.perform(options("/api/session")
+                        .header("Origin", "https://tabikime.app")
+                        .header("Access-Control-Request-Method", "GET")
+                        .header("Access-Control-Request-Headers", "Authorization"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "https://tabikime.app"))
+                .andExpect(header().doesNotExist("Access-Control-Allow-Credentials"));
+
+        mockMvc.perform(options("/api/session")
+                        .header("Origin", "https://preview--tabikime.web.app")
+                        .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        "Access-Control-Allow-Origin", "https://preview--tabikime.web.app"));
+
+        mockMvc.perform(options("/api/session")
+                        .header("Origin", "https://attacker.example")
+                        .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isForbidden())
+                .andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
+    }
+
+    @Test
+    void rejectsCorsWildcardsHttpAndValuesThatAreNotOrigins() {
+        for (String invalidOrigin : java.util.List.of(
+                "https://*.web.app",
+                "http://tabikime.app",
+                "https://tabikime.app/path",
+                "https://tabikime.app?preview=true",
+                "https://user@tabikime.app")) {
+            assertThatThrownBy(() -> new CorsProperties(
+                    java.util.List.of(invalidOrigin), java.time.Duration.ofHours(1)))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("CORS origins must be exact HTTPS origins");
+        }
     }
 
     @Configuration(proxyBeanMethods = false)

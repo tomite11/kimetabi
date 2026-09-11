@@ -1,0 +1,28 @@
+project_id      = "your-preview-project"
+environment     = "preview"
+hosting_site_id = "your-preview-project"
+backend_image   = "asia-northeast1-docker.pkg.dev/your-preview-project/kimetabi-preview-backend/api@sha256:REPLACE_WITH_64_HEX_CHARACTERS"
+backend_public_base_url = "https://api.tabikime.app"
+
+cors_allowed_origins = [
+  "https://tabikime.app",
+  "https://REPLACE_APPROVED_CHANNEL--your-preview-project.web.app"
+]
+
+# Notification channel IDs are environment-specific. Configure two independent
+# routes, such as email and Slack, before planning the environment.
+alert_notification_channel_names = [
+  "projects/your-preview-project/notificationChannels/REPLACE_EMAIL_CHANNEL",
+  "projects/your-preview-project/notificationChannels/REPLACE_SLACK_CHANNEL"
+]
+
+# Closed-beta defaults are fixed in variables.tf and may be omitted. They are
+# repeated here to make an intentional environment override visible.
+cloud_run_5xx_count_threshold   = 4
+outbox_failure_count_threshold = 0
+cloud_sql_cpu_threshold        = 0.8
+cloud_sql_tier                 = "db-g1-small"
+backup_start_time              = "18:00"
+retained_backups               = 14
+transaction_log_retention_days = 7
+outbox_recovery_schedule       = "*/5 * * * *"

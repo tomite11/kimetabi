@@ -1,0 +1,36 @@
+name: Infrastructure
+
+on:
+  pull_request:
+    paths:
+      - "infrastructure/**"
+      - "firebase.json"
+      - "tests/test_m8_b_infrastructure.py"
+      - ".github/workflows/infrastructure.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "infrastructure/**"
+      - "firebase.json"
+      - "tests/test_m8_b_infrastructure.py"
+      - ".github/workflows/infrastructure.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.13.3"
+      - run: terraform fmt -check -recursive
+        working-directory: infrastructure
+      - run: terraform init -backend=false
+        working-directory: infrastructure
+      - run: terraform validate
+        working-directory: infrastructure
+      - run: python3 -m unittest tests.test_m8_b_infrastructure
