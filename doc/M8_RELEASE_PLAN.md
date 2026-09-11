@@ -6,8 +6,8 @@
 
 | Phase | 内容 | 状態 | 完了条件 |
 |---|---|---|---|
-| 1 | CI品質ゲート復旧 | 進行中 | 最新HEADのBackend・Frontend・Infrastructure CIが全成功 |
-| 2 | Preview入力・権限確定 | 未着手 | project、state、secret、通知先、originが承認済み |
+| 1 | CI品質ゲート復旧 | 完了 | 最新HEADのBackend・Frontend・Infrastructure CIが全成功 |
+| 2 | Preview入力・権限確定 | ブロック | project、state、secret、通知先、originが承認済み |
 | 3 | Preview基盤適用 | 未着手 | Terraform applyと全GCP resource確認が完了 |
 | 4 | 同一Previewへの配備 | 未着手 | Frontend、Cloud Run、DB、Tasks等の疎通成功 |
 | 5 | フェーズ1受け入れ検証 | 未着手 | 全受け入れ条件に自動または手動証跡あり |
@@ -27,11 +27,40 @@
 5. `code-review-excellence` で全差分をレビューし、重大・高指摘を修正して影響テストを再実行する。
 6. commit・push後、GitHub Actionsの全job成功を確認する。
 
+### 実施結果
+
+- 完了日: 2026-09-11
+- 対象commit: `c8a645c`
+- 原因: Viteの開発用`/api` reverse proxyがbrowserの`Origin`を実APIへ転送し、Preview originだけを
+  許可するBackendのCORS境界でintegration E2Eの旅行作成が`403`になっていた。
+- 対応: 開発用`/api` proxyに限って転送元`Origin`を除去した。本番CORS設定とWebSocket境界は
+  変更していない。
+- ローカル: Backend 222件、Frontend unit 55件、通常E2E 5件、release E2E 16件、
+  realtime E2E 1件、実API integration E2E 2件が成功。lint、typecheck、buildも成功。
+- CI: [Frontend run 34562700813](https://github.com/tomite11/kimetabi/actions/runs/34562700813) の
+  `quality`、`e2e`、`integration-e2e`が成功。BackendとInfrastructureは対象ファイルに変更がなく、
+  それぞれ直近の該当workflow成功を維持している。
+- レビュー: `/ws` proxyにも同じ処理を適用していた初期差分を高優先度指摘として修正。
+  未解決の重大・高優先度指摘なし。
+
 ## Phase 2: Preview入力・権限確定
 
 Google Cloud project、Firebase Hosting site、remote state bucket、環境名、Artifact Registry、
 DB接続secret、異なる2系統の通知channel、許可preview origin、実行identityを確定する。
 秘密値はGit、Terraform変数、shell履歴へ残さない。
+
+### 現在のブロッカー
+
+- `gcloud`の有効な認証は確認済みだが、既定project
+  `project-47b92713-3093-43be-86b`（表示名`My First Project`）を本Previewへ使う承認がない。
+- 承認済みのTerraform remote state bucketとprefixがない。
+- Firebase Hosting site IDとpreview channel名がない。
+- 本番およびpreviewの許可originが確定していない。
+- emailとSlack等、異なる2系統のMonitoring notification channel IDがない。
+- Secret ManagerへのDB secret version投入経路と、Terraform／deployの実行identityが確定していない。
+
+上記を承認・提示された時点でPhase 2を再開する。秘密値そのものは提示せず、承認済みの
+Secret Manager投入経路を指定する。
 
 ## Phase 3: Preview基盤適用
 
