@@ -7,7 +7,7 @@
 | Phase | 内容 | 状態 | 完了条件 |
 |---|---|---|---|
 | 1 | CI品質ゲート復旧 | 完了 | 最新HEADのBackend・Frontend・Infrastructure CIが全成功 |
-| 2 | Preview入力・権限確定 | ブロック | project、state、secret、通知先、originが承認済み |
+| 2 | Preview入力・権限確定 | 完了 | project、state、secret、通知先、originが承認済み |
 | 3 | Preview基盤適用 | 未着手 | Terraform applyと全GCP resource確認が完了 |
 | 4 | 同一Previewへの配備 | 未着手 | Frontend、Cloud Run、DB、Tasks等の疎通成功 |
 | 5 | フェーズ1受け入れ検証 | 未着手 | 全受け入れ条件に自動または手動証跡あり |
@@ -49,18 +49,42 @@ Google Cloud project、Firebase Hosting site、remote state bucket、環境名�
 DB接続secret、異なる2系統の通知channel、許可preview origin、実行identityを確定する。
 秘密値はGit、Terraform変数、shell履歴へ残さない。
 
-### 現在のブロッカー
+### 確定結果
 
-- `gcloud`の有効な認証は確認済みだが、既定project
-  `project-47b92713-3093-43be-86b`（表示名`My First Project`）を本Previewへ使う承認がない。
-- 承認済みのTerraform remote state bucketとprefixがない。
-- Firebase Hosting site IDとpreview channel名がない。
-- 本番およびpreviewの許可originが確定していない。
-- emailとSlack等、異なる2系統のMonitoring notification channel IDがない。
-- Secret ManagerへのDB secret version投入経路と、Terraform／deployの実行identityが確定していない。
+- 完了日: 2026-09-11
+- Google Cloud project: `kimetabi-preview-998740556155`（表示名`Kimetabi Preview`、project number
+  `507802978914`）。既定の別用途projectは流用せず、専用projectを作成して課金を有効化した。
+- 環境名とリージョン: `preview`、`asia-northeast1`。
+- Terraform remote state: bucket `kimetabi-preview-998740556155-tfstate`、prefix
+  `kimetabi/preview`。uniform bucket-level access、public access prevention、versioningを有効化した。
+- Firebase Hosting: site ID `kimetabi-preview-998740556155`、preview channel `closed-beta`。
+  channelは30日TTLで作成し、後続deployで有効期限を更新する。
+- 許可origin: 本番Frontend `https://tabikime.app`、Preview Frontend
+  `https://kimetabi-preview-998740556155--closed-beta-ch7b7443.web.app`。Backend public base URLは
+  `https://api.tabikime.app`とする。wildcard originは使用しない。
+- Artifact Registry repository ID: `kimetabi-preview-backend`。
+- Monitoring notification channel:
+  - email: `projects/kimetabi-preview-998740556155/notificationChannels/1941396717245681851`
+  - Slack: `projects/kimetabi-preview-998740556155/notificationChannels/10974268897495083492`
+- Secret Manager container: `kimetabi-preview-database-url`、`kimetabi-preview-database-username`、
+  `kimetabi-preview-database-password`。TerraformはcontainerとIAMだけを管理し、payloadはbootstrap
+  担当者が`gcloud secrets versions add SECRET --data-file=-`で標準入力から登録する。payloadをGit、
+  GitHub Variables／Secrets、Terraform変数・state、shell引数・履歴へ残さない。
+- 実行identity:
+  - 初回bootstrapとTerraform apply: `bay.take20@gmail.com`のADC。Preview専用projectだけを対象とする。
+  - GitHub deploy: `kimetabi-preview-deploy@kimetabi-preview-998740556155.iam.gserviceaccount.com`。
+    service account keyは作成せず、Workload Identity Provider
+    `projects/507802978914/locations/global/workloadIdentityPools/github-actions/providers/kimetabi-preview`
+    を使う。OIDCはGitHub repository ID `1318047987`（`tomite11/kimetabi`）、`main` branch、
+    `preview` environmentの全条件へ限定した。project権限はArtifact Registryへのimage push、
+    Cloud Run更新、Firebase Hosting deploy、service usageに限定し、Terraform apply権限とSecret
+    payloadアクセス権限は付与しない。Cloud Run runtime service accountのactAs権限は、対象account
+    作成後にそのaccountだけへ付与する。
+- 上記の非秘密値はGitHub `preview` environment variablesへ登録した。DB秘密値は登録していない。
 
-上記を承認・提示された時点でPhase 2を再開する。秘密値そのものは提示せず、承認済みの
-Secret Manager投入経路を指定する。
+Phase 3ではremote backendを初期化し、Terraform管理対象の既存Firebase project／Hosting siteを
+importしてからplanする。Hosting channelはTerraform管理対象外とし、Firebase Hosting側で維持する。
+bootstrap済みのstate bucket、Workload Identity、deploy identityはTerraform管理へ重複追加しない。
 
 ## Phase 3: Preview基盤適用
 
