@@ -35,14 +35,18 @@ terraform apply \
 DB URLはCloud SQL Java Connectorを利用するJDBC URLを指定する。例えば
 `jdbc:postgresql:///kimetabi?cloudSqlInstance=PROJECT:REGION:INSTANCE&socketFactory=com.google.cloud.sql.postgres.SocketFactory&cloudSqlRefreshStrategy=lazy`
 の形式とする。値の登録後に全体をapplyする。平文資格情報をCLI historyやTerraform変数へ
-渡さず、承認済みのsecret投入手段を使う。
+渡さず、承認済みのsecret投入手段を使う。Cloud SQL application userのpasswordはTerraformの
+ephemeral variableとproviderのwrite-only属性で設定する。Secret Managerのversion番号と
+`database_password_version`を一致させ、値そのものはstateへ保存しない。
 
 ```bash
 terraform fmt -check -recursive
 terraform validate
-terraform plan -out=release.tfplan
+TF_VAR_database_password="$(gcloud secrets versions access 1 \
+  --secret=kimetabi-ENV-database-password)" terraform plan -out=release.tfplan
 terraform show release.tfplan
-terraform apply release.tfplan
+TF_VAR_database_password="$(gcloud secrets versions access 1 \
+  --secret=kimetabi-ENV-database-password)" terraform apply release.tfplan
 ```
 
 state bucketは環境とは別のbootstrap手順でversioning、public access prevention、限定IAMを

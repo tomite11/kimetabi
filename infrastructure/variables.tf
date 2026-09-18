@@ -18,6 +18,19 @@ variable "hosting_site_id" {
   type        = string
 }
 
+variable "deploy_service_account_email" {
+  description = "Pre-created keyless deploy identity allowed to act as this environment's runtime identity."
+  type        = string
+
+  validation {
+    condition = can(regex("^[A-Za-z0-9-]+@[A-Za-z0-9-]+\\.iam\\.gserviceaccount\\.com$", var.deploy_service_account_email)) && endswith(
+      var.deploy_service_account_email,
+      "@${var.project_id}.iam.gserviceaccount.com"
+    )
+    error_message = "deploy_service_account_email must be a service account in project_id."
+  }
+}
+
 variable "backend_image" {
   description = "Immutable Artifact Registry image URI including a digest."
   type        = string
@@ -119,6 +132,30 @@ variable "cloud_sql_tier" {
 variable "database_name" {
   type    = string
   default = "kimetabi"
+}
+
+variable "database_username" {
+  description = "Built-in PostgreSQL application user stored separately in Secret Manager."
+  type        = string
+  default     = "kimetabi"
+}
+
+variable "database_password" {
+  description = "Ephemeral PostgreSQL application password supplied from Secret Manager during apply."
+  type        = string
+  sensitive   = true
+  ephemeral   = true
+}
+
+variable "database_password_version" {
+  description = "Monotonic version used to rotate the write-only Cloud SQL user password."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.database_password_version >= 1 && floor(var.database_password_version) == var.database_password_version
+    error_message = "database_password_version must be a positive integer."
+  }
 }
 
 variable "backup_start_time" {

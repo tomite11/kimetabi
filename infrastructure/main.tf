@@ -78,6 +78,12 @@ resource "google_service_account" "scheduler" {
   display_name = "${local.prefix} Cloud Scheduler OIDC caller"
 }
 
+resource "google_service_account_iam_member" "deploy_can_use_runtime_identity" {
+  service_account_id = google_service_account.runtime.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${var.deploy_service_account_email}"
+}
+
 resource "google_project_iam_member" "runtime_roles" {
   for_each = toset([
     "roles/cloudsql.client",
@@ -156,6 +162,14 @@ resource "google_sql_database" "application" {
   instance = google_sql_database_instance.postgres.name
 }
 
+resource "google_sql_user" "application" {
+  project             = var.project_id
+  instance            = google_sql_database_instance.postgres.name
+  name                = var.database_username
+  password_wo         = var.database_password
+  password_wo_version = var.database_password_version
+}
+
 resource "google_storage_bucket" "receipts" {
   project                     = var.project_id
   name                        = "${var.project_id}-${local.prefix}-receipts"
@@ -164,6 +178,13 @@ resource "google_storage_bucket" "receipts" {
   public_access_prevention    = "enforced"
   force_destroy               = false
   labels                      = local.labels
+
+  cors {
+    origin          = var.cors_allowed_origins
+    method          = ["PUT"]
+    response_header = ["Content-Type"]
+    max_age_seconds = 3600
+  }
 }
 
 resource "google_storage_bucket_iam_member" "runtime_receipts" {
@@ -211,9 +232,9 @@ resource "google_secret_manager_secret" "database" {
 }
 
 resource "google_secret_manager_secret_iam_member" "runtime_database" {
-  for_each  = google_secret_manager_secret.database
+  for_each  = toset(["url", "username", "password"])
   project   = var.project_id
-  secret_id = each.value.secret_id
+  secret_id = google_secret_manager_secret.database[each.key].secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.runtime.email}"
 }
@@ -351,7 +372,8 @@ resource "google_cloud_run_v2_service" "api" {
 
   depends_on = [
     google_project_service.required,
-    google_secret_manager_secret_iam_member.runtime_database
+    google_secret_manager_secret_iam_member.runtime_database,
+    google_sql_user.application
   ]
 }
 

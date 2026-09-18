@@ -1,6 +1,6 @@
 # M8 クローズドβ完了プラン
 
-更新日: 2026-09-11
+更新日: 2026-09-18
 
 ## 進捗
 
@@ -8,7 +8,7 @@
 |---|---|---|---|
 | 1 | CI品質ゲート復旧 | 完了 | 最新HEADのBackend・Frontend・Infrastructure CIが全成功 |
 | 2 | Preview入力・権限確定 | 完了 | project、state、secret、通知先、originが承認済み |
-| 3 | Preview基盤適用 | 未着手 | Terraform applyと全GCP resource確認が完了 |
+| 3 | Preview基盤適用 | 完了 | Terraform applyと全GCP resource確認が完了 |
 | 4 | 同一Previewへの配備 | 未着手 | Frontend、Cloud Run、DB、Tasks等の疎通成功 |
 | 5 | フェーズ1受け入れ検証 | 未着手 | 全受け入れ条件に自動または手動証跡あり |
 | 6 | PWA・UI実機検証 | 未着手 | 品質レポートのPreview手動項目が全完了 |
@@ -91,6 +91,34 @@ bootstrap済みのstate bucket、Workload Identity、deploy identityはTerraform
 remote backend初期化、既存resource import、API・secret container先行作成、secret version登録、
 digest固定imageの作成・登録、`terraform fmt`・`validate`・`plan`レビューを行う。plan承認後だけ
 applyし、Cloud Run、SQL、Tasks、Storage、Scheduler、Monitoringを確認する。
+
+### 実施結果
+
+- 完了日: 2026-09-18
+- remote state: `kimetabi-preview-998740556155-tfstate` の `kimetabi/preview`。既存の
+  Firebase project、Hosting site、Artifact Registry、必要API、Secret Manager containerをimportまたは
+  先行適用した状態から再開した。DBの3 secretはすべてversion 1が有効で、payloadを
+  Terraform stateやGitに保存していない。
+- image: Artifact RegistryのBackend image
+  `sha256:4061f40bae113c84fc6caf42349a2dc8ba36471543d5531ee50fd7b8376a225a`の存在を確認し、
+  Cloud Runにdigest固定で適用した。
+- plan: `31 to add, 0 to change, 0 to destroy`をresource単位でレビューし、意図しない
+  削除・置換・本番projectの変更がないことを確認した。apply後の再planは`No changes`。
+- Cloud Run: `kimetabi-preview-api`は`asia-northeast1`でReady、runtime service account、
+  `min=0` / `max=1`を確認し、`/actuator/health/liveness`は`200` / `UP`だった。
+- Cloud SQL: PostgreSQL 17、`db-g1-small`、ZONAL、backup 14件、`18:00 UTC`、PITR 7日、
+  resourceとinstance設定の二重の削除保護を確認した。application databaseとuserは
+  Secret Manager version 1と同じpasswordをwrite-only属性で設定した。
+- Tasks・Storage・Scheduler: metadata queueはRUNNINGで仕様のretry/rate limit、receipt bucketは
+  uniform access、public access prevention、許可済み2 originの`PUT` CORS、Outbox回復は5分周期、
+  receipt cleanupは30分周期でいずれもENABLEDを確認した。
+- Monitoring: Cloud Run 5xx、Outbox dispatch failure、Cloud SQL CPUの3 alertが有効で、
+  それぞれemailとSlackの2 notification channelを持つことを確認した。
+- IAM: runtime、Tasks、Schedulerを別identityとし、deploy identityの`actAs`は対象runtime
+  service accountだけに付与した。runtimeのSecret読取りも3つのDB secretだけに限定した。
+- レビュー: deploy identityが別projectのservice accountでも入力できる点を高優先度指摘として
+  修正し、`project_id`内のidentityだけを許可するvalidationを追加した。未解決の重大・高優先度
+  指摘はない。
 
 ## Phase 4: 同一Previewへの配備
 
