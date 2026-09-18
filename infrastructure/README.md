@@ -6,7 +6,9 @@ receipt bucket、Tasks/Scheduler専用OIDC identityをコードで固定する�
 
 ## 適用前の入力
 
-`terraform.tfvars.example` をコピーし、実環境のIDを設定する。tfvarsとstateは
+`terraform.tfvars.example` をコピーし、実環境のIDを設定する。公開クライアント用の
+`backend_public_base_url`と、Cloud Tasks／Scheduler用のCloud Run既定originである
+`backend_internal_base_url`は分離する。tfvarsとstateは
 secretを含み得るためcommitしない。Cloud SQL tier、backup/PITR保持期間、
 alert閾値、Outbox回復周期は`doc/SPEC.md`のクローズドβ初期値をdefaultとする。
 alertの通知channel IDだけは環境固有であり、emailとSlack等の異なる2系統を設定する。

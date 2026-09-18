@@ -4,6 +4,7 @@ hosting_site_id = "your-preview-project"
 deploy_service_account_email = "kimetabi-preview-deploy@your-preview-project.iam.gserviceaccount.com"
 backend_image   = "asia-northeast1-docker.pkg.dev/your-preview-project/kimetabi-preview-backend/api@sha256:REPLACE_WITH_64_HEX_CHARACTERS"
 backend_public_base_url = "https://api.tabikime.app"
+backend_internal_base_url = "https://kimetabi-preview-api-example-an.a.run.app"
 
 cors_allowed_origins = [
   "https://tabikime.app",

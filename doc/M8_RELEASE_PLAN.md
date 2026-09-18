@@ -10,7 +10,7 @@
 | 2 | Preview入力・権限確定 | 完了 | project、state、secret、通知先、originが承認済み |
 | 3 | Preview基盤適用 | 完了 | Terraform applyと全GCP resource確認が完了 |
 | 4 | 同一Previewへの配備 | 完了 | Frontend、Cloud Run、DB、Tasks等の疎通成功 |
-| 5 | フェーズ1受け入れ検証 | 未着手 | 全受け入れ条件に自動または手動証跡あり |
+| 5 | フェーズ1受け入れ検証 | 完了 | 全受け入れ条件に自動または手動証跡あり |
 | 6 | PWA・UI実機検証 | 未着手 | 品質レポートのPreview手動項目が全完了 |
 | 7 | 運用・復旧演習 | 未着手 | backup restore、rollback、Outbox回復を実演 |
 | 8 | M8完了判定 | 未着手 | 全合流条件を満たし重大・高指摘なし |
@@ -160,6 +160,24 @@ WebSocket、旅行snapshotをsmoke testする。
 旅行・招待、候補・投票・採択、URL非同期取得、DRAFT・offline再送、按分、精算・再精算、
 REST／WebSocket認可、409、revision回復、タイムゾーンを同じPreviewで検証し、commit SHA、
 環境、日時、結果、trace IDを記録する。
+
+### 実施結果
+
+- 完了日: 2026-09-18
+- 対象commit: `cffa2896ed3546166b9dbb2c5777deefcd46cc60`
+- 同一Previewの旅行ID `13`で、旅行・招待、候補・投票・採択、URL非同期取得、DRAFT・冪等再送、
+  按分、精算・再精算、REST／WebSocket認可、409、revision回復、`Asia/Tokyo`を完走した。
+- Preview Playwrightは28 REST確認とWebSocket認可確認を4.4分で完了し、全REST応答のtrace IDを
+  artifactへ保存した。詳細は`doc/M8_PHASE5_ACCEPTANCE_REPORT.md`を参照する。
+- 検証中、Cloud Tasksの内部配送先がDNS未開通の公開domainを参照する問題を検出した。内部配送URLと
+  OIDC audienceをCloud Run既定URLへ分離し、revision `kimetabi-preview-api-00005-hz5`へ反映した。
+  修正後のmetadata taskは内部endpointへ`204`で到達し、候補が終端状態へ遷移した。
+- Backend 223件、Frontend unit 55件、通常E2E 5件、realtime E2E 1件、実API integration E2E 2件、
+  Preview受け入れE2E 1件が成功。Frontend lint、typecheck、Terraform fmt・validate・planも成功した。
+- OS Share Target POSTは`doc/IMPLEMENTATION_PLAN.md`第10節の裁定どおりPhase 2扱いとし、通常URL貼付と
+  非同期metadata取得をM8で検証した。
+- レビュー: 公開URLの変数説明が内部OIDC用途を含む古い記述だった点を修正し、設定手順へ公開／内部URLの
+  分離を明記した。未解決の重大・高優先度指摘はない。
 
 ## Phase 6: PWA・UI実機検証
 

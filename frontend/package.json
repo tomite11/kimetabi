@@ -14,6 +14,7 @@
     "test:e2e:release": "VITE_E2E_PWA=true npm run build && E2E_PWA=true playwright test && E2E_CROSS_BROWSER=true playwright test",
     "test:e2e:realtime": "E2E_REALTIME=true playwright test",
     "test:e2e:integration": "E2E_REAL_API=true playwright test",
+    "test:e2e:preview": "E2E_PREVIEW=true playwright test",
     "typecheck": "npm run generate:api && tsc -b --pretty false"
   },
   "dependencies": {

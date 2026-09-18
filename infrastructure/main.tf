@@ -274,8 +274,8 @@ resource "google_cloud_run_v2_service" "api" {
   deletion_protection = true
   ingress             = "INGRESS_TRAFFIC_ALL"
   custom_audiences = [
-    "${var.backend_public_base_url}/internal/tasks",
-    "${var.backend_public_base_url}/internal/scheduler"
+    "${var.backend_internal_base_url}/internal/tasks",
+    "${var.backend_internal_base_url}/internal/scheduler"
   ]
   labels = local.labels
 
@@ -345,7 +345,7 @@ resource "google_cloud_run_v2_service" "api" {
       }
       env {
         name  = "BACKEND_BASE_URL"
-        value = var.backend_public_base_url
+        value = var.backend_internal_base_url
       }
       env {
         name  = "TASKS_SERVICE_ACCOUNT_EMAIL"
@@ -353,7 +353,7 @@ resource "google_cloud_run_v2_service" "api" {
       }
       env {
         name  = "TASKS_OIDC_AUDIENCE"
-        value = "${var.backend_public_base_url}/internal/tasks"
+        value = "${var.backend_internal_base_url}/internal/tasks"
       }
       env {
         name  = "SCHEDULER_SERVICE_ACCOUNT_EMAIL"
@@ -361,7 +361,7 @@ resource "google_cloud_run_v2_service" "api" {
       }
       env {
         name  = "SCHEDULER_OIDC_AUDIENCE"
-        value = "${var.backend_public_base_url}/internal/scheduler"
+        value = "${var.backend_internal_base_url}/internal/scheduler"
       }
       env {
         name  = "RECEIPT_STORAGE_BUCKET"
@@ -448,7 +448,7 @@ resource "google_cloud_scheduler_job" "outbox_recovery" {
     body        = base64encode(jsonencode({ limit = 100 }))
     oidc_token {
       service_account_email = google_service_account.scheduler.email
-      audience              = "${var.backend_public_base_url}/internal/scheduler"
+      audience              = "${var.backend_internal_base_url}/internal/scheduler"
     }
   }
 }
@@ -467,7 +467,7 @@ resource "google_cloud_scheduler_job" "receipt_cleanup" {
     uri         = "${google_cloud_run_v2_service.api.uri}/internal/receipts/orphans/cleanup"
     oidc_token {
       service_account_email = google_service_account.scheduler.email
-      audience              = "${var.backend_public_base_url}/internal/scheduler"
+      audience              = "${var.backend_internal_base_url}/internal/scheduler"
     }
   }
 }

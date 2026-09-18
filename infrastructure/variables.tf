@@ -42,12 +42,22 @@ variable "backend_image" {
 }
 
 variable "backend_public_base_url" {
-  description = "Approved HTTPS origin used by REST/WebSocket clients and as the OIDC audience base."
+  description = "Approved public HTTPS origin used by REST and WebSocket clients."
   type        = string
 
   validation {
     condition     = can(regex("^https://[A-Za-z0-9.-]+(?::[0-9]+)?$", var.backend_public_base_url))
     error_message = "backend_public_base_url must be an HTTPS origin without a trailing slash."
+  }
+}
+
+variable "backend_internal_base_url" {
+  description = "Cloud Run service origin used by Cloud Tasks and Scheduler before public DNS is available."
+  type        = string
+
+  validation {
+    condition     = can(regex("^https://[A-Za-z0-9.-]+\\.a\\.run\\.app$", var.backend_internal_base_url))
+    error_message = "backend_internal_base_url must be a Cloud Run HTTPS origin without a trailing slash."
   }
 }
 
