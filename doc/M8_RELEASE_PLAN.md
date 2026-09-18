@@ -9,7 +9,7 @@
 | 1 | CI品質ゲート復旧 | 完了 | 最新HEADのBackend・Frontend・Infrastructure CIが全成功 |
 | 2 | Preview入力・権限確定 | 完了 | project、state、secret、通知先、originが承認済み |
 | 3 | Preview基盤適用 | 完了 | Terraform applyと全GCP resource確認が完了 |
-| 4 | 同一Previewへの配備 | 未着手 | Frontend、Cloud Run、DB、Tasks等の疎通成功 |
+| 4 | 同一Previewへの配備 | 完了 | Frontend、Cloud Run、DB、Tasks等の疎通成功 |
 | 5 | フェーズ1受け入れ検証 | 未着手 | 全受け入れ条件に自動または手動証跡あり |
 | 6 | PWA・UI実機検証 | 未着手 | 品質レポートのPreview手動項目が全完了 |
 | 7 | 運用・復旧演習 | 未着手 | backup restore、rollback、Outbox回復を実演 |
@@ -125,6 +125,35 @@ applyし、Cloud Run、SQL、Tasks、Storage、Scheduler、Monitoringを確認�
 Flyway V1〜V12を適用したBackendをCloud Runへ、production FrontendをFirebase Hostingの
 preview channelへ配備する。health、Firebase匿名認証、CORS、CSP、SPA fallback、REST、
 WebSocket、旅行snapshotをsmoke testする。
+
+### 実施結果
+
+- 完了日: 2026-09-18
+- Backend: `linux/amd64` image
+  `sha256:63638aa2c2469eb40e929f61c7556f3cd6f43abe4ff368ea6bf6d96d8221cd5c`を
+  Artifact Registryへ登録し、Cloud Run revision `kimetabi-preview-api-00004-d8q`へdigest固定で
+  配備した。100% traffic、health `200`を確認し、適用後のTerraform planは`No changes`だった。
+- Database: 新revisionの起動ログで12 migrationの検証成功、schema version `12`、追加migration不要を
+  確認した。Cloud SchedulerからOutbox回復endpointへのOIDC付きrequestも`200`だった。
+- Frontend: production buildをFirebase Hosting preview channel `closed-beta`へ配備した。URLは
+  `https://kimetabi-preview-998740556155--closed-beta-ch7b7443.web.app`、有効期限は
+  2026-10-18 16:27 JSTである。SPAの深いrouteは`200`でfallbackした。
+- Firebase Auth: Preview projectにWeb Appを登録し、Identity Platform API、匿名sign-in、Hostingと
+  Previewの完全一致authorized domainをTerraform管理へ追加した。ブラウザから匿名ID tokenを取得し、
+  `/api/session`が`200`となることを確認した。
+- Browser smoke: Hosting URLから旅行を作成し、REST snapshot取得とreload後の再取得がともに`200`、
+  WebSocket upgradeが`101`、STOMP `CONNECTED`が1回以上到達した。異なるoriginの`/ws`が当初
+  `403`だったため、RESTと同じ完全一致CORS originをSTOMP handshakeにも適用し、回帰テストを追加した。
+- Security headers: Preview originのCORS preflightが完全一致の`Access-Control-Allow-Origin`で`200`、
+  CSPの`connect-src`はCloud Runの`https` / `wss` endpointを明示し、wildcardは使用していない。
+  `X-Content-Type-Options: nosniff`と`X-Frame-Options: DENY`も確認した。
+- 検証: Backend 223件、Frontend unit 55件が成功。Frontend lint、typecheck、Terraform fmt、
+  validate、`git diff --check`も成功した。
+- レビュー: WebSocket handshakeの許可originが未設定だった問題を高優先度指摘として修正し、
+  Firebase deploy cacheを追跡対象外へ追加した。未解決の重大・高優先度指摘はない。
+- 制約: `api.tabikime.app`はDNSとverified domainが未準備のため、今回のPreview buildはCloud Runの
+  既定URLへ接続した。CSPと内部OIDC audienceには予定どおりcustom domainを残しており、公開前に
+  DNSとCloud Run domain mappingを完了する。
 
 ## Phase 5: フェーズ1受け入れ検証
 

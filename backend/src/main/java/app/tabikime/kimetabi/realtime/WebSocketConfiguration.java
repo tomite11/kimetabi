@@ -12,6 +12,7 @@ import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
 import app.tabikime.kimetabi.identity.FirebaseTokenVerifier;
+import app.tabikime.kimetabi.support.config.CorsProperties;
 import app.tabikime.kimetabi.trip.TripAuthorizationService;
 
 @Configuration(proxyBeanMethods = false)
@@ -20,14 +21,17 @@ public class WebSocketConfiguration implements WebSocketMessageBrokerConfigurer 
 
     private final Optional<FirebaseTokenVerifier> tokenVerifier;
     private final TripSubscriptionAuthorizationManager subscriptionAuthorization;
+    private final CorsProperties corsProperties;
 
     public WebSocketConfiguration(
             Optional<FirebaseTokenVerifier> tokenVerifier,
-            TripAuthorizationService tripAuthorization
+            TripAuthorizationService tripAuthorization,
+            CorsProperties corsProperties
     ) {
         this.tokenVerifier = tokenVerifier;
         this.subscriptionAuthorization =
                 new TripSubscriptionAuthorizationManager(tripAuthorization);
+        this.corsProperties = corsProperties;
     }
 
     @Override
@@ -37,7 +41,8 @@ public class WebSocketConfiguration implements WebSocketMessageBrokerConfigurer 
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws");
+        registry.addEndpoint("/ws")
+                .setAllowedOrigins(corsProperties.allowedOrigins().toArray(String[]::new));
     }
 
     @Override

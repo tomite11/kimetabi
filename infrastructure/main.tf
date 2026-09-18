@@ -5,6 +5,13 @@ locals {
     environment = var.environment
     managed_by  = "terraform"
   }
+  firebase_authorized_domains = distinct(concat(
+    [
+      "${var.hosting_site_id}.firebaseapp.com",
+      "${var.hosting_site_id}.web.app"
+    ],
+    [for origin in var.cors_allowed_origins : trimprefix(origin, "https://")]
+  ))
   required_services = toset([
     "artifactregistry.googleapis.com",
     "cloudresourcemanager.googleapis.com",
@@ -14,6 +21,7 @@ locals {
     "firebasehosting.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
+    "identitytoolkit.googleapis.com",
     "logging.googleapis.com",
     "monitoring.googleapis.com",
     "run.googleapis.com",
@@ -36,6 +44,26 @@ resource "google_firebase_hosting_site" "application" {
   site_id  = var.hosting_site_id
 
   depends_on = [google_firebase_project.application]
+}
+
+resource "google_identity_platform_config" "application" {
+  project            = var.project_id
+  authorized_domains = local.firebase_authorized_domains
+
+  sign_in {
+    anonymous {
+      enabled = true
+    }
+    email {
+      enabled           = false
+      password_required = false
+    }
+    phone_number {
+      enabled = false
+    }
+  }
+
+  depends_on = [google_project_service.required]
 }
 
 data "google_project" "current" {
