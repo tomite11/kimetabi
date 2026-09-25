@@ -47,8 +47,16 @@ Cloud SQLのCLIで既存backupを復旧する場合の基本形は次のとお�
 instance名を作業記録と相互確認してから実行する。
 
 ```bash
-gcloud sql backups restore BACKUP_ID --restore-instance=TARGET_INSTANCE_NAME
+gcloud sql backups restore BACKUP_ID \
+  --restore-instance=TARGET_INSTANCE_NAME \
+  --backup-instance=SOURCE_INSTANCE_NAME
 ```
+
+standard backup IDを別instanceへ復元するとき、gcloudのversionによっては新規instance向けの
+`--region`や`--tier`をbackup IDと同時指定できない。その場合は、同じdatabase version・regionの
+空instanceを先に作成し、その空instanceだけを`--restore-instance`へ指定する。作成直後の空instance
+であることを`gcloud sql operations list`で確認し、既存instance名を復元先へ使わない。演習後は
+照合結果とrestore operation IDを記録してから一時instanceを削除し、継続課金を止める。
 
 ## PITR
 

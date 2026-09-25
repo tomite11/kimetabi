@@ -42,8 +42,14 @@ Outbox滞留時間・件数の専用metricは未実装のため、DB read-only q
 1. 5xxをrevision別に比較し、health probeとtrace IDを確認する。
 2. schemaが旧revisionと互換であることを `doc/DATABASE_OPERATIONS.md` で確認する。
 3. 互換ならtrafficを直前の正常revisionへ戻す。DB migrationは巻き戻さない。
+   `min instances = 0`かつ`max instances = 1`では切替直後に旧revisionのinstanceがまだなく、
+   platformが一時的に`429`を返すことがある。traceのtext payloadが`no available instance`であることを
+   確認し、上限付きretryでreadinessを待つ。アプリ由来の429や5xxと混同しない。
 4. Schedulerの対象URLとOIDC audienceが切替後も有効か確認し、Outbox回復を実行する。
 5. REST read、候補作成、支出確定、精算作成、WebSocket再接続をsmoke testする。
+
+演習やrollback確認後に最新revisionへ戻す場合も、traffic更新と上限付きreadiness retryを同じ
+作業単位で実行する。途中失敗時にも復帰処理を実行し、最後にrevision名とtraffic 100%を確認する。
 
 ## Cloud SQL障害・復旧
 
@@ -73,3 +79,10 @@ Outbox滞留時間・件数の専用metricは未実装のため、DB read-only q
 - 未配信eventが回復し、revision gapがREST snapshotで解消する。
 - Cloud SQLのbackup/PITR状態と次回backup予定を確認できる。
 - incident記録に時系列、trace ID、影響resource、原因、再発防止を残し、秘密情報を含めない。
+
+## Alert通知演習
+
+業務データや実Outboxを壊してalertを起こさない。承認済みの訓練では、専用log名へ`drill=true`、
+incident ID、秘密を含まないoutcome codeを付けた単発の構造化logを投入し、log-based metric、alert
+policy、email／Slackの2経路を確認する。訓練logを通常障害と区別し、通知文へtoken、payload、URLを
+含めない。演習後はincidentが自動closeすることも確認する。

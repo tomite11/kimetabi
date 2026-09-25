@@ -12,7 +12,7 @@
 | 4 | 同一Previewへの配備 | 完了 | Frontend、Cloud Run、DB、Tasks等の疎通成功 |
 | 5 | フェーズ1受け入れ検証 | 完了 | 全受け入れ条件に自動または手動証跡あり |
 | 6 | PWA・UI実機検証 | 完了 | 品質レポートのPreview手動項目が全完了 |
-| 7 | 運用・復旧演習 | 未着手 | backup restore、rollback、Outbox回復を実演 |
+| 7 | 運用・復旧演習 | 完了 | backup restore、rollback、Outbox回復を実演 |
 | 8 | M8完了判定 | 未着手 | 全合流条件を満たし重大・高指摘なし |
 
 状態は `未着手`、`進行中`、`完了`、`ブロック` のいずれかとする。後続Phaseは直前Phaseの
@@ -202,6 +202,17 @@ REST／WebSocket認可、409、revision回復、タイムゾーンを同じPrevi
 on-demand backupを別Cloud SQL instanceへrestoreし、Flyway履歴と業務不変条件を照合する。
 Cloud Run rollback、Outbox滞留からScheduler回復、alert通知、trace追跡を実演する。既存instanceを
 上書きするrestoreや削除保護解除は行わない。
+
+### 実施結果
+
+- 2026-09-25にon-demand backup `1790303852723`を取得し、空の別Cloud SQL instanceへ復元した。
+  Flyway V1〜V12、業務テーブル件数、OWNER、支出按分、精算、Outboxの不変条件をread-only SQLで
+  照合し、不一致0件を確認した。復元先だけを演習後に削除し、元DBとbackupは保持した。
+- Cloud Runを直前revisionへtraffic 100%でrollbackし、scale-to-zeroの一時429をtraceで切り分け、
+  readiness `UP`を確認後に最新revisionへ復帰した。
+- Outbox回復Schedulerを手動実行し、OIDC内部endpointの`200`、trace追跡、実行前後の未配信0件を
+  確認した。Email／Slack 2系統のalertを訓練logで発火させ、自動closeまで確認した。
+- 詳細は`doc/M8_PHASE7_RECOVERY_DRILL.md`を参照する。
 
 ## Phase 8: M8完了判定
 
