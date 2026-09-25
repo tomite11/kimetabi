@@ -11,7 +11,7 @@
 | 3 | Preview基盤適用 | 完了 | Terraform applyと全GCP resource確認が完了 |
 | 4 | 同一Previewへの配備 | 完了 | Frontend、Cloud Run、DB、Tasks等の疎通成功 |
 | 5 | フェーズ1受け入れ検証 | 完了 | 全受け入れ条件に自動または手動証跡あり |
-| 6 | PWA・UI実機検証 | 未着手 | 品質レポートのPreview手動項目が全完了 |
+| 6 | PWA・UI実機検証 | 完了 | 品質レポートのPreview手動項目が全完了 |
 | 7 | 運用・復旧演習 | 未着手 | backup restore、rollback、Outbox回復を実演 |
 | 8 | M8完了判定 | 未着手 | 全合流条件を満たし重大・高指摘なし |
 
@@ -184,6 +184,18 @@ REST／WebSocket認可、409、revision回復、タイムゾーンを同じPrevi
 `doc/FRONTEND_QUALITY_REPORT.md` に従い、install／standalone、Service Worker更新、airplane mode、
 実機camera fallback、360px・200% zoom、keyboard・focus、reduced motion、空状態、2 browser同期を
 確認し、URL、端末、browser、実施者、日時、screenshotを記録する。
+
+### 実施結果
+
+- 完了日: 2026-09-25
+- 検証開始時ベースcommit: `f58742e689e3b6302f53ec3720969f0439eeee6a`
+- MacBook Air M4／macOS 27.0、Chrome 153、Playwright 1.57 Chromiumで同一Previewを検証した。
+- installability／standalone、Service Workerとオフライン起動、写真DRAFTの一度だけ再送、camera/file
+  fallback、360px・200%相当表示、keyboard・focus、reduced motion、空状態、2 browser同期が成功した。
+- Preview検証でreceipt uploadのCSP／Storage CORS不備を検出し、完全一致originと必要headerだけを
+  許可して修正した。主CTAのコントラストもWCAG AAへ修正し、prototypeへ反映した。
+- Lighthouse 12はAccessibility 100、Best Practices 100。詳細と6枚のscreenshotは
+  `doc/M8_PHASE6_PWA_UI_REPORT.md`を参照する。
 
 ## Phase 7: 運用・復旧演習
 

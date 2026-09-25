@@ -1,6 +1,6 @@
 # M8-C フロントエンド品質レポート
 
-確認日: 2026-09-11
+確認日: 2026-09-25
 
 ## 対象と自動検証
 
@@ -36,4 +36,13 @@ preview URL、実施者、実施日時をリリース記録へ残した時点で
 - `npm run test:e2e:realtime`: 2ブラウザ欠落回復1件成功
 - 390×844、1440×900の目視確認: 横overflowなし、可視フォーカスあり
 
-Firebase Hosting previewでの手動項目は未実施であり、M8全体の合流条件として残る。
+## Preview検証結果
+
+Firebase Hosting Previewと同一Cloud Run環境で、installability／standalone、Service Worker、
+オフライン起動と写真DRAFT再送、camera/file fallback、360px・200%相当表示、keyboard・focus、
+reduced motion、空状態、2 browser同期を確認した。Lighthouse 12はAccessibility 100、
+Best Practices 100だった。端末、browser、日時、修正内容、スクリーンショットは
+`doc/M8_PHASE6_PWA_UI_REPORT.md`へ記録した。
+
+Preview検証中に発見したCloud Storage uploadのCSP／CORS不備と主CTAのコントラスト不備は修正し、
+再配備後のPreview E2Eで回帰確認した。未解決の重大・高優先度UI問題はない。

@@ -12,7 +12,7 @@
         "headers": [
           {
             "key": "Content-Security-Policy",
-            "value": "default-src 'self'; base-uri 'self'; connect-src 'self' https://api.tabikime.app wss://api.tabikime.app https://kimetabi-preview-api-zgwys6oq3a-an.a.run.app wss://kimetabi-preview-api-zgwys6oq3a-an.a.run.app https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; font-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob:; object-src 'none'; script-src 'self'; style-src 'self'; upgrade-insecure-requests"
+            "value": "default-src 'self'; base-uri 'self'; connect-src 'self' https://api.tabikime.app wss://api.tabikime.app https://kimetabi-preview-api-zgwys6oq3a-an.a.run.app wss://kimetabi-preview-api-zgwys6oq3a-an.a.run.app https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://storage.googleapis.com; font-src 'self'; form-action 'self'; frame-ancestors 'none'; frame-src https://kimetabi-preview-998740556155.firebaseapp.com; img-src 'self' data: blob:; object-src 'none'; script-src 'self' https://apis.google.com; style-src 'self'; upgrade-insecure-requests"
           },
           {
             "key": "Permissions-Policy",

@@ -210,7 +210,7 @@ resource "google_storage_bucket" "receipts" {
   cors {
     origin          = var.cors_allowed_origins
     method          = ["PUT"]
-    response_header = ["Content-Type"]
+    response_header = ["Content-Type", "x-goog-if-generation-match"]
     max_age_seconds = 3600
   }
 }
