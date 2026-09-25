@@ -1,6 +1,6 @@
 # M8 クローズドβ完了プラン
 
-更新日: 2026-09-18
+更新日: 2026-09-25
 
 ## 進捗
 
@@ -13,7 +13,7 @@
 | 5 | フェーズ1受け入れ検証 | 完了 | 全受け入れ条件に自動または手動証跡あり |
 | 6 | PWA・UI実機検証 | 完了 | 品質レポートのPreview手動項目が全完了 |
 | 7 | 運用・復旧演習 | 完了 | backup restore、rollback、Outbox回復を実演 |
-| 8 | M8完了判定 | 未着手 | 全合流条件を満たし重大・高指摘なし |
+| 8 | M8完了判定 | 完了 | 全合流条件を満たし重大・高指摘なし |
 
 状態は `未着手`、`進行中`、`完了`、`ブロック` のいずれかとする。後続Phaseは直前Phaseの
 完了を開始条件とし、例外的に並行する場合も各完了条件は省略しない。
@@ -218,6 +218,20 @@ Cloud Run rollback、Outbox滞留からScheduler回復、alert通知、trace追�
 
 同一Previewで3レーンを検証済み、全受け入れ条件に証跡あり、復旧演習済み、全CI成功、
 重大・高問題なしを確認する。関連文書と最終レビュー結果を更新してM8を完了とする。
+
+### 実施結果
+
+- 完了日: 2026-09-25
+- 判定対象commit: `1c5c231002b2028ff4ca7979e49099fd1888aa1f`
+- A／B／Cの3レーンを同一Previewで検証し、Phase 5の業務受け入れ、Phase 6のPWA・UI、Phase 7の
+  運用・復旧演習がすべて成功した。
+- Backend、Frontend、Infrastructureの最新該当GitHub Actionsは全job成功。その後の変更が
+  Phase 6・7の証跡文書だけであり、検証対象コードに差分がないことを確認した。
+- Terraformの最終planは`No changes`。Cloud Run、Cloud SQL、Scheduler、Monitoring、Hosting
+  preview channelの稼働状態と、email／Slackの2通知経路を再確認した。
+- OWASP観点の最終監査と変更差分レビューを実施し、未解決の重大・高優先度指摘はない。
+- M8の全合流条件と完了定義を満たしたため、クローズドβをリリース可能と判定した。CI run、
+  タスク別証跡、残存制約を含む詳細は`doc/M8_COMPLETION_REPORT.md`を参照する。
 
 ## 停止条件
 
