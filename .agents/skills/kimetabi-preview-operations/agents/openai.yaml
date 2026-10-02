@@ -1,0 +1,4 @@
+interface:
+  display_name: "タビキメPreview環境の停止・再開"
+  short_description: "Cloud Run・Cloud SQL・監視を安全に停止・再開します"
+  default_prompt: "Use $kimetabi-preview-operations to stop, resume, or inspect the Kimetabi preview environment safely."
